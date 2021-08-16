@@ -156,7 +156,8 @@ class BaseRecognizer(nn.Module, metaclass=ABCMeta):
         else:
             x = self.backbone(imgs)
         return x
-
+    
+    '''
     def average_clip(self, cls_score, num_segs=1):
         """Averaging class score over multiple clips.
 
@@ -190,6 +191,47 @@ class BaseRecognizer(nn.Module, metaclass=ABCMeta):
             cls_score = F.softmax(cls_score, dim=2).mean(dim=1)
         elif average_clips == 'score':
             cls_score = cls_score.mean(dim=1)
+
+        return cls_score
+    '''
+
+    def aggregate_clip(self, cls_score, num_segs=1):
+        if ('average_clips' not in self.test_cfg) and ('maximize_clips'
+                                                       not in self.test_cfg):
+            raise KeyError(
+                '"average_clips" or "maximize_clips" must be defined in '
+                'test_cfg\'s keys')
+        average_clips = self.test_cfg.get('average_clips', None)
+        maximize_clips = self.test_cfg.get('maximize_clips', None)
+        if average_clips not in ['score', 'prob', None]:
+            raise ValueError(f'{average_clips} is not supported. '
+                             f'Currently supported ones are '
+                             f'["score", "prob", None]')
+        if maximize_clips not in ['score', 'prob', None]:
+            raise ValueError(f'{maximize_clips} is not supported. '
+                             f'Currently supported ones are '
+                             f'["score", "prob", None]')
+        if average_clips is not None and maximize_clips is not None:
+            raise KeyError(
+                'Cannot do "average_clips" and "maximize_clips" both.')
+
+        if average_clips is None and maximize_clips is None:
+            return cls_score
+
+        batch_size = cls_score.shape[0]
+        cls_score = cls_score.view(batch_size // num_segs, num_segs, -1)
+
+        # choose to average the scores of clips
+        if average_clips == 'prob':
+            cls_score = F.softmax(cls_score, dim=2).mean(dim=1)
+        elif average_clips == 'score':
+            cls_score = cls_score.mean(dim=1)
+
+        # choose to maximize the scores of clips
+        if maximize_clips == 'prob':
+            cls_score = F.softmax(cls_score, dim=2).max(dim=1)[0]
+        elif maximize_clips == 'score':
+            cls_score = cls_score.max(dim=1)[0]
 
         return cls_score
 

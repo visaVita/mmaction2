@@ -95,8 +95,11 @@ class Recognizer2D(BaseRecognizer):
 
         assert cls_score.size()[0] % batches == 0
         # calculate num_crops automatically
-        cls_score = self.average_clip(cls_score,
-                                      cls_score.size()[0] // batches)
+        # cls_score = self.average_clip(cls_score,
+        #                              cls_score.size()[0] // batches)
+        cls_score = self.aggregate_clip(cls_score,
+                                    cls_score.size()[0] // batches)
+
         return cls_score
 
     def _do_fcn_test(self, imgs):

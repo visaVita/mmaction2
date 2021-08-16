@@ -115,7 +115,7 @@ evaluation = dict(
     interval=5, metrics=['top_k_accuracy', 'mean_class_accuracy'])
 
 optimizer = dict(
-    type='SGD', lr=0.075, momentum=0.9,
+    type='SGD', lr=0.10, momentum=0.9,
     weight_decay=0.0001)  # this lr is used for 8 gpus
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
@@ -124,11 +124,11 @@ lr_config = dict(
     min_lr=0,
     warmup='linear',
     warmup_by_epoch=True,
-    warmup_iters=17)
+    warmup_iters=34)
 total_epochs = 120
 
 # runtime settings
-checkpoint_config = dict(interval=5)
+checkpoint_config = dict(interval=1)
 workflow = [('train', 1)]
 log_config = dict(
     interval=20,
@@ -144,5 +144,5 @@ work_dir = './work_dirs/slowfast_cot_r50_4x16x1_256e_kinetics400_rgb'
 load_from = None
 find_unused_parameters = False
 #resume_from = './work_dirs/slowfast_cot_r50_4x16x1_256e_kinetics400_rgb/best_top1_acc_epoch_8.pth'
-resume_from = None
+resume_from = './work_dirs/slowfast_cot_r50_4x16x1_256e_kinetics400_rgb_fix/epoch_20.pth'
 dist_params = dict(backend='nccl')

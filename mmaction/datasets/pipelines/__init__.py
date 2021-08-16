@@ -14,8 +14,8 @@ from .loading import (AudioDecode, AudioDecodeInit, AudioFeatureSelector,
                       LoadLocalizationFeature, LoadProposals, OpenCVDecode,
                       OpenCVInit, PIMSDecode, PIMSInit, PyAVDecode,
                       PyAVDecodeMotionVector, PyAVInit, RawFrameDecode,
-                      SampleAVAFrames, SampleFrames, SampleProposalFrames,
-                      UntrimmedSampleFrames)
+                      SampleAVAFrames, SampleFrames, SampleCharadesFrames, 
+                      SampleProposalFrames, UntrimmedSampleFrames)
 from .pose_loading import (GeneratePoseTarget, LoadKineticsPose, PoseDecode,
                            UniformSampleFrames)
 
@@ -35,5 +35,5 @@ __all__ = [
     'RandomRescale', 'PyAVDecodeMotionVector', 'Rename', 'Imgaug',
     'UniformSampleFrames', 'PoseDecode', 'LoadKineticsPose',
     'GeneratePoseTarget', 'PIMSInit', 'PIMSDecode', 'TorchvisionTrans',
-    'PytorchVideoTrans'
+    'PytorchVideoTrans', 'SampleCharadesFrames'
 ]
