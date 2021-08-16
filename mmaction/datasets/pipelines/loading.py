@@ -264,6 +264,46 @@ class SampleFrames:
                     f'test_mode={self.test_mode})')
         return repr_str
 
+@PIPELINES.register_module()
+class SampleCharadesFrames(SampleFrames):
+    def __init__(self, num_classes=157, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.num_classes = num_classes
+
+    @staticmethod
+    def aggregate_labels(label_list):
+        """Join a list of label list."""
+        return list(set().union(*label_list))
+
+    def __call__(self, results):
+        """Perform the SampleFrames loading.
+        Args:
+            results (dict): The resulting dict to be modified and passed
+                to the next transform in pipeline.
+        """
+        results = super().__call__(results)
+        if not self.test_mode:
+            # aggregate labels of the sampled clip
+            frame_inds = results['frame_inds']
+            assert self.num_clips == 1, (
+                'Only support sampling one clip in train mode!')
+            label_list = results['label'][frame_inds[0] - 1:frame_inds[-1]]
+            label = self.aggregate_labels(label_list)
+            onehot = torch.zeros(self.num_classes)
+            onehot[label] = 1.
+            results['label'] = onehot
+        return results
+    
+    def __repr__(self):
+        repr_str = (f'{self.__class__.__name__}('
+                    f'clip_len={self.clip_len}, '
+                    f'num_classes={self.num_classes}, '
+                    f'frame_interval={self.frame_interval}, '
+                    f'num_clips={self.num_clips}, '
+                    f'temporal_jitter={self.temporal_jitter}, '
+                    f'twice_sample={self.twice_sample}, '
+                    f'test_mode={self.test_mode})')
+        return repr_str
 
 @PIPELINES.register_module()
 class UntrimmedSampleFrames:
