@@ -1,7 +1,7 @@
 model = dict(
     type='Recognizer3D',
     backbone=dict(
-        type='SlowFast_CoT',
+        type='ResNet3dSlowFast',
         pretrained=None,
         resample_rate=4,  # tau
         speed_ratio=4,  # alpha
@@ -16,7 +16,9 @@ model = dict(
             conv1_stride_t=1,
             pool1_stride_t=1,
             inflate=(0, 0, 1, 1),
-            norm_eval=False),
+            norm_eval=False,
+            CoT=True
+            ),
         fast_pathway=dict(
             type='resnet3d',
             depth=50,
@@ -26,7 +28,9 @@ model = dict(
             conv1_kernel=(5, 7, 7),
             conv1_stride_t=1,
             pool1_stride_t=1,
-            norm_eval=False)),
+            norm_eval=False,
+            CoT=True
+            )),
     cls_head=dict(
         type='SlowFastHead',
         in_channels=2304,  # 2048+256
@@ -96,7 +100,7 @@ test_pipeline = [
     dict(type='ToTensor', keys=['imgs'])
 ]
 data = dict(
-    videos_per_gpu=8,
+    videos_per_gpu=1,
     workers_per_gpu=2,
     val_dataloader=dict(videos_per_gpu=1),
     test_dataloader=dict(videos_per_gpu=1),
@@ -123,7 +127,7 @@ evaluation = dict(
 
 # optimizer
 optimizer = dict(
-    type='SGD', lr=0.05, momentum=0.9,
+    type='SGD', lr=0.005, momentum=0.9,
     weight_decay=1e-4)  # this lr is used for 8 gpus
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy

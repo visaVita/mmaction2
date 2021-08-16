@@ -41,6 +41,7 @@ class ResNet3dPathway(ResNet3d):
                  speed_ratio=8,
                  channel_ratio=8,
                  fusion_kernel=5,
+                 CoT=True,
                  **kwargs):
         self.lateral = lateral
         self.speed_ratio = speed_ratio
@@ -101,7 +102,8 @@ class ResNet3dPathway(ResNet3d):
                        conv_cfg=None,
                        norm_cfg=None,
                        act_cfg=None,
-                       with_cp=False):
+                       with_cp=False,
+                       CoT=True):
         """Build residual layer for Slowfast.
 
         Args:
@@ -180,7 +182,8 @@ class ResNet3dPathway(ResNet3d):
                 conv_cfg=conv_cfg,
                 norm_cfg=norm_cfg,
                 act_cfg=act_cfg,
-                with_cp=with_cp))
+                with_cp=with_cp,
+                CoT=CoT))
         inplanes = planes * block.expansion
 
         for i in range(1, blocks):
@@ -199,7 +202,8 @@ class ResNet3dPathway(ResNet3d):
                     conv_cfg=conv_cfg,
                     norm_cfg=norm_cfg,
                     act_cfg=act_cfg,
-                    with_cp=with_cp))
+                    with_cp=with_cp,
+                    CoT=CoT))
 
         return nn.Sequential(*layers)
 
@@ -435,7 +439,9 @@ class ResNet3dSlowFast(nn.Module):
                      dilations=(1, 1, 1, 1),
                      conv1_stride_t=1,
                      pool1_stride_t=1,
-                     inflate=(0, 0, 1, 1)),
+                     inflate=(0, 0, 1, 1),
+                     CoT=True
+                     ),
                  fast_pathway=dict(
                      type='resnet3d',
                      depth=50,
@@ -444,7 +450,8 @@ class ResNet3dSlowFast(nn.Module):
                      base_channels=8,
                      conv1_kernel=(5, 7, 7),
                      conv1_stride_t=1,
-                     pool1_stride_t=1)):
+                     pool1_stride_t=1,
+                     CoT=True)):
         super().__init__()
         self.pretrained = pretrained
         self.resample_rate = resample_rate

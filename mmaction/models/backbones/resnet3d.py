@@ -1,5 +1,7 @@
 import warnings
 
+import torch
+import torch.nn.functional as F
 import torch.nn as nn
 import torch.utils.checkpoint as cp
 from mmcv.cnn import (ConvModule, NonLocal3d, build_activation_layer,
@@ -18,6 +20,85 @@ try:
 except (ImportError, ModuleNotFoundError):
     mmdet_imported = False
 
+
+class CoTAttention3d(nn.Module):
+    def __init__(self, inplanes, planes, stride, t_size=3, s_size=1, factor=4):
+        super().__init__()
+        self.inplanes = inplanes
+        self.planes = planes
+        self.t_size = t_size
+        self.s_size = s_size
+        self.k_size = max([t_size, s_size])
+        self.transform = ConvModule(
+            inplanes,
+            planes,
+            (1, 1, 1),
+            stride=stride,
+            padding=(0, 0, 0),
+            bias=False,
+            conv_cfg=dict(type='Conv3d'),
+            norm_cfg=dict(type='BN3d'),
+            act_cfg=dict(type='ReLU')
+        )
+        self.key_embed = ConvModule(
+            planes,
+            planes,
+            (t_size, s_size, s_size),
+            padding=(t_size//2, s_size//2, s_size//2),
+            groups=4,
+            bias=False,
+            conv_cfg=dict(type='Conv3d'),
+            norm_cfg=dict(type='BN3d'),
+            act_cfg=dict(type='ReLU')
+        )
+        self.value_embed = ConvModule(
+            planes,
+            planes,
+            (1, 1, 1),
+            bias=False,
+            conv_cfg=dict(type='Conv3d'),
+            norm_cfg=dict(type='BN3d'),
+            act_cfg=None
+        )
+        self.attention_embed_in = ConvModule(
+            2*planes,
+            2*planes//factor,
+            (1, 1, 1),
+            bias=False,
+            conv_cfg=dict(type='Conv3d'),
+            norm_cfg=dict(type='BN3d'),
+            act_cfg=dict(type='ReLU')
+        )
+        self.attention_embed_out = ConvModule(
+            2*planes//factor,
+            t_size*s_size*s_size*planes,
+            (1, 1, 1),
+            bias=False,
+            conv_cfg=dict(type='Conv3d'),
+            norm_cfg=None,
+            act_cfg=None
+        )
+    
+    def forward(self, x):
+        x = self.transform(x)
+        bs,c,t,h,w = x.shape
+        k1= self.key_embed(x)
+        v = self.value_embed(x)
+        y = torch.cat([k1, x], dim=1) #b, 2c, t, h, w
+        att=self.attention_embed_in(y)
+        att=self.attention_embed_out(att)
+
+        if(self.t_size>=self.s_size):
+            att=att.reshape(bs, self.planes, self.t_size*self.s_size*self.s_size, t, h, w)
+            att=att.mean(2, keepdim=False)
+            k2=F.softmax(att, dim=2)*v
+        else:
+            v=v.view(bs, c, t, -1)
+            att=att.reshape(bs, self.planes, self.t_size*self.s_size*self.s_size, t, -1)
+            att=att.mean(2, keepdim=False)
+            k2=F.softmax(att, dim=-1)*v
+            k2=k2.view(bs, c, t, h, w)
+        return k1+k2
 
 class BasicBlock3d(nn.Module):
     """BasicBlock 3d block for ResNet3D.
@@ -204,7 +285,8 @@ class Bottleneck3d(nn.Module):
                  conv_cfg=dict(type='Conv3d'),
                  norm_cfg=dict(type='BN3d'),
                  act_cfg=dict(type='ReLU'),
-                 with_cp=False):
+                 with_cp=False,
+                 CoT=False):
         super().__init__()
         assert style in ['pytorch', 'caffe']
         assert inflate_style in ['3x1x1', '3x3x3']
@@ -223,6 +305,7 @@ class Bottleneck3d(nn.Module):
         self.with_cp = with_cp
         self.non_local = non_local
         self.non_local_cfg = non_local_cfg
+        self.CoT = CoT
 
         if self.style == 'pytorch':
             self.conv1_stride_s = 1
@@ -241,6 +324,9 @@ class Bottleneck3d(nn.Module):
                 conv1_padding = (1, 0, 0)
                 conv2_kernel_size = (1, 3, 3)
                 conv2_padding = (0, dilation, dilation)
+                cot_size_s = 1
+                cot_size_t = 3
+
             else:
                 conv1_kernel_size = (1, 1, 1)
                 conv1_padding = (0, 0, 0)
@@ -251,31 +337,52 @@ class Bottleneck3d(nn.Module):
             conv1_padding = (0, 0, 0)
             conv2_kernel_size = (1, 3, 3)
             conv2_padding = (0, dilation, dilation)
+            cot_size_s = 1
+            cot_size_t = 1
 
-        self.conv1 = ConvModule(
-            inplanes,
-            planes,
-            conv1_kernel_size,
-            stride=(self.conv1_stride_t, self.conv1_stride_s,
-                    self.conv1_stride_s),
-            padding=conv1_padding,
-            bias=False,
-            conv_cfg=self.conv_cfg,
-            norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+        if self.CoT:
+            self.conv1 = CoTAttention3d(
+                inplanes,
+                planes,
+                stride=(self.conv1_stride_t, self.conv1_stride_s,
+                        self.conv1_stride_s),
+                t_size=cot_size_t,
+                s_size=cot_size_s
+            )
 
-        self.conv2 = ConvModule(
-            planes,
-            planes,
-            conv2_kernel_size,
-            stride=(self.conv2_stride_t, self.conv2_stride_s,
-                    self.conv2_stride_s),
-            padding=conv2_padding,
-            dilation=(1, dilation, dilation),
-            bias=False,
-            conv_cfg=self.conv_cfg,
-            norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
+            self.conv2 = CoTAttention3d(
+                planes,
+                planes,
+                stride=(self.conv2_stride_t, self.conv2_stride_s,
+                        self.conv2_stride_s),
+                t_size=1,
+                s_size=3,
+            )
+        else:
+            self.conv1 = ConvModule(
+                inplanes,
+                planes,
+                conv1_kernel_size,
+                stride=(self.conv1_stride_t, self.conv1_stride_s,
+                        self.conv1_stride_s),
+                padding=conv1_padding,
+                bias=False,
+                conv_cfg=self.conv_cfg,
+                norm_cfg=self.norm_cfg,
+                act_cfg=self.act_cfg)
+
+            self.conv2 = ConvModule(
+                planes,
+                planes,
+                conv2_kernel_size,
+                stride=(self.conv2_stride_t, self.conv2_stride_s,
+                        self.conv2_stride_s),
+                padding=conv2_padding,
+                dilation=(1, dilation, dilation),
+                bias=False,
+                conv_cfg=self.conv_cfg,
+                norm_cfg=self.norm_cfg,
+                act_cfg=self.act_cfg)
 
         self.conv3 = ConvModule(
             planes,
@@ -426,6 +533,7 @@ class ResNet3d(nn.Module):
                  non_local=(0, 0, 0, 0),
                  non_local_cfg=dict(),
                  zero_init_residual=True,
+                 CoT=False,
                  **kwargs):
         super().__init__()
         if depth not in self.arch_settings:
@@ -501,6 +609,7 @@ class ResNet3d(nn.Module):
                 inflate=self.stage_inflations[i],
                 inflate_style=self.inflate_style,
                 with_cp=with_cp,
+                CoT=CoT,
                 **kwargs)
             self.inplanes = planes * self.block.expansion
             layer_name = f'layer{i + 1}'
@@ -527,6 +636,7 @@ class ResNet3d(nn.Module):
                        act_cfg=None,
                        conv_cfg=None,
                        with_cp=False,
+                       CoT=False,
                        **kwargs):
         """Build residual layer for ResNet3D.
 
@@ -601,6 +711,7 @@ class ResNet3d(nn.Module):
                 conv_cfg=conv_cfg,
                 act_cfg=act_cfg,
                 with_cp=with_cp,
+                CoT=CoT,
                 **kwargs))
         inplanes = planes * block.expansion
         for i in range(1, blocks):
@@ -620,6 +731,7 @@ class ResNet3d(nn.Module):
                     conv_cfg=conv_cfg,
                     act_cfg=act_cfg,
                     with_cp=with_cp,
+                    CoT=CoT,
                     **kwargs))
 
         return nn.Sequential(*layers)
@@ -928,6 +1040,7 @@ class ResNet3dLayer(nn.Module):
                  norm_eval=False,
                  with_cp=False,
                  zero_init_residual=True,
+                 CoT=True,
                  **kwargs):
 
         super().__init__()
@@ -963,6 +1076,7 @@ class ResNet3dLayer(nn.Module):
         self.norm_eval = norm_eval
         self.with_cp = with_cp
         self.zero_init_residual = zero_init_residual
+        self.CoT = CoT
 
         block, stage_blocks = self.arch_settings[depth]
         stage_block = stage_blocks[stage]
@@ -984,6 +1098,7 @@ class ResNet3dLayer(nn.Module):
             inflate=self.stage_inflation,
             inflate_style=self.inflate_style,
             with_cp=with_cp,
+            CoT=self.CoT,
             **kwargs)
 
         self.layer_name = f'layer{stage + 1}'
