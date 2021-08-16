@@ -100,7 +100,7 @@ test_pipeline = [
     dict(type='ToTensor', keys=['imgs'])
 ]
 data = dict(
-    videos_per_gpu=1,
+    videos_per_gpu=8,
     workers_per_gpu=2,
     val_dataloader=dict(videos_per_gpu=1),
     test_dataloader=dict(videos_per_gpu=1),
@@ -126,13 +126,17 @@ evaluation = dict(
     interval=1, metrics=['mean_average_precision'])
 
 # optimizer
-optimizer = dict(
-    type='SGD', lr=0.005, momentum=0.9,
-    weight_decay=1e-4)  # this lr is used for 8 gpus
+optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=1e-4)
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
-lr_config = dict(policy='step', step=[20, 40])
-total_epochs = 120
+lr_config = dict(
+    policy='step',
+    step=[20, 40],
+    warmup='linear',
+    warmup_by_epoch=True,
+    warmup_iters=2,
+    warmup_ratio=0.0001)
+total_epochs = 50
 
 # runtime settings
 checkpoint_config = dict(interval=1)
@@ -145,9 +149,9 @@ log_config = dict(
     ])
 log_level = 'INFO'
 work_dir = './work_dirs/slowfast_cot_r50_4x16x1_256e_charades_rgb'
-#load_from = ('https://download.openmmlab.com/mmaction/recognition/slowfast/'
-#             'slowfast_r50_4x16x1_256e_kinetics400_rgb/'
-#             'slowfast_r50_4x16x1_256e_kinetics400_rgb_20200704-bcde7ed7.pth')
-load_from = None
+load_from = ('https://download.openmmlab.com/mmaction/recognition/'
+             'slowfast/slowfast_r50_8x8x1_256e_kinetics400_rgb/'
+             'slowfast_r50_8x8x1_256e_kinetics400_rgb_20200716-73547d2b.pth')
+# load_from = None
 find_unused_parameters = False
 resume_from = None
