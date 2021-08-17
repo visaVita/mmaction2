@@ -11,6 +11,7 @@ model = dict(
             depth=50,
             pretrained=None,
             lateral=True,
+            fusion_kernel=7,
             conv1_kernel=(1, 7, 7),
             dilations=(1, 1, 1, 1),
             conv1_stride_t=1,
@@ -126,7 +127,7 @@ evaluation = dict(
     interval=1, metrics=['mean_average_precision'])
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=1e-4)
+optimizer = dict(type='SGD', lr=0.0125, momentum=0.9, weight_decay=1e-4)
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
 lr_config = dict(
@@ -148,7 +149,7 @@ log_config = dict(
         #dict(type='TensorboardLoggerHook'),
     ])
 log_level = 'INFO'
-work_dir = './work_dirs/slowfast_cot_r50_4x16x1_256e_charades_rgb'
+work_dir = './work_dirs/slowfast_cot_r50_8x8x1_256e_charades_rgb'
 load_from = ('https://download.openmmlab.com/mmaction/recognition/'
              'slowfast/slowfast_r50_8x8x1_256e_kinetics400_rgb/'
              'slowfast_r50_8x8x1_256e_kinetics400_rgb_20200716-73547d2b.pth')

@@ -339,7 +339,6 @@ class Bottleneck3d(nn.Module):
             conv2_padding = (0, dilation, dilation)
             cot_size_s = 1
             cot_size_t = 1
-
         if self.CoT:
             self.conv1 = CoTAttention3d(
                 inplanes,
@@ -609,7 +608,6 @@ class ResNet3d(nn.Module):
                 inflate=self.stage_inflations[i],
                 inflate_style=self.inflate_style,
                 with_cp=with_cp,
-                CoT=CoT,
                 **kwargs)
             self.inplanes = planes * self.block.expansion
             layer_name = f'layer{i + 1}'
@@ -636,7 +634,6 @@ class ResNet3d(nn.Module):
                        act_cfg=None,
                        conv_cfg=None,
                        with_cp=False,
-                       CoT=False,
                        **kwargs):
         """Build residual layer for ResNet3D.
 
@@ -711,7 +708,7 @@ class ResNet3d(nn.Module):
                 conv_cfg=conv_cfg,
                 act_cfg=act_cfg,
                 with_cp=with_cp,
-                CoT=CoT,
+                CoT=False,
                 **kwargs))
         inplanes = planes * block.expansion
         for i in range(1, blocks):
