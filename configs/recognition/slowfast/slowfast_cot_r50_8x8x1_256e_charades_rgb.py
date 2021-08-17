@@ -151,7 +151,7 @@ log_config = dict(
     ])
 log_level = 'INFO'
 work_dir = './work_dirs/slowfast_cot_r50_8x8x1_256e_charades_rgb'
-# https://download.openmmlab.com/mmaction/recognition/slowfast/slowfast_r50_256p_4x16x1_256e_kinetics400_rgb/slowfast_r50_256p_4x16x1_256e_kinetics400_rgb_20200728-145f1097.pth
+
 load_from = ('https://download.openmmlab.com/mmaction/recognition/'
              'slowfast/slowfast_r50_8x8x1_256e_kinetics400_rgb/'
              'slowfast_r50_8x8x1_256e_kinetics400_rgb_20200716-73547d2b.pth')

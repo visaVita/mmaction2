@@ -1,4 +1,4 @@
-python tools/train.py configs/recognition/slowfast/slowfast_cot_r50_4x16x1_256e_charades_rgb.py --validate --seed 42 --deterministic
+python tools/train.py configs/recognition/slowfast/slowfast_cot_r50_8x8x1_256e_charades_rgb.py --validate --seed 42 --deterministic
 
 python tools/train.py configs/recognition/slowfast/slowfast_cot_r50_4x16x1_256e_kinetics400_rgb.py --validate --seed 42 --deterministic
 

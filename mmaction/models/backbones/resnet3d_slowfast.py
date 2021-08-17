@@ -41,12 +41,13 @@ class ResNet3dPathway(ResNet3d):
                  speed_ratio=8,
                  channel_ratio=8,
                  fusion_kernel=5,
-                 CoT=True,
+                 CoT=False,
                  **kwargs):
         self.lateral = lateral
         self.speed_ratio = speed_ratio
         self.channel_ratio = channel_ratio
         self.fusion_kernel = fusion_kernel
+        self.CoT = CoT
         super().__init__(*args, **kwargs)
         self.inplanes = self.base_channels
         if self.lateral:
@@ -103,7 +104,7 @@ class ResNet3dPathway(ResNet3d):
                        norm_cfg=None,
                        act_cfg=None,
                        with_cp=False,
-                       CoT=True):
+                       ):
         """Build residual layer for Slowfast.
 
         Args:
@@ -164,7 +165,6 @@ class ResNet3dPathway(ResNet3d):
                 act_cfg=None)
         else:
             downsample = None
-
         layers = []
         layers.append(
             block(
@@ -203,7 +203,7 @@ class ResNet3dPathway(ResNet3d):
                     norm_cfg=norm_cfg,
                     act_cfg=act_cfg,
                     with_cp=with_cp,
-                    CoT=CoT))
+                    CoT=self.CoT))
 
         return nn.Sequential(*layers)
 
