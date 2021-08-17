@@ -101,8 +101,8 @@ test_pipeline = [
     dict(type='ToTensor', keys=['imgs'])
 ]
 data = dict(
-    videos_per_gpu=8,
-    workers_per_gpu=2,
+    videos_per_gpu=16,
+    workers_per_gpu=4,
     val_dataloader=dict(videos_per_gpu=1),
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(
@@ -127,7 +127,15 @@ evaluation = dict(
     interval=1, metrics=['mean_average_precision'])
 
 # optimizer
+<<<<<<< HEAD:configs/recognition/slowfast/slowfast_cot_r50_8x8x1_256e_charades_rgb.py
 optimizer = dict(type='SGD', lr=0.0125, momentum=0.9, weight_decay=1e-4)
+=======
+<<<<<<< HEAD:configs/recognition/slowfast/slowfast_cot_r50_8x8x1_256e_charades_rgb.py
+optimizer = dict(type='SGD', lr=0.05, momentum=0.9, weight_decay=1e-4)
+=======
+optimizer = dict(type='SGD', lr=0.075, momentum=0.9, weight_decay=1e-4)
+>>>>>>> 19f7cd184e882bda99dae609c0b033649a35af2d:configs/recognition/slowfast/slowfast_cot_r50_4x16x1_256e_charades_rgb.py
+>>>>>>> fd2a57a240eae6a208bd953ee2f940e50739218d:configs/recognition/slowfast/slowfast_cot_r50_8x8x1_256e_charades_rgb.py
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
 lr_config = dict(
@@ -137,7 +145,7 @@ lr_config = dict(
     warmup_by_epoch=True,
     warmup_iters=2,
     warmup_ratio=0.0001)
-total_epochs = 50
+total_epochs = 80
 
 # runtime settings
 checkpoint_config = dict(interval=1)
@@ -146,13 +154,15 @@ log_config = dict(
     interval=10,
     hooks=[
         dict(type='TextLoggerHook'),
-        #dict(type='TensorboardLoggerHook'),
+        dict(type='TensorboardLoggerHook'),
     ])
 log_level = 'INFO'
 work_dir = './work_dirs/slowfast_cot_r50_8x8x1_256e_charades_rgb'
+
 load_from = ('https://download.openmmlab.com/mmaction/recognition/'
              'slowfast/slowfast_r50_8x8x1_256e_kinetics400_rgb/'
              'slowfast_r50_8x8x1_256e_kinetics400_rgb_20200716-73547d2b.pth')
 # load_from = None
 find_unused_parameters = False
 resume_from = None
+dist_params = dict(backend='nccl')
