@@ -183,7 +183,7 @@ class ResNet3dPathway(ResNet3d):
                 norm_cfg=norm_cfg,
                 act_cfg=act_cfg,
                 with_cp=with_cp,
-                CoT=CoT))
+                CoT=False))
         inplanes = planes * block.expansion
 
         for i in range(1, blocks):
