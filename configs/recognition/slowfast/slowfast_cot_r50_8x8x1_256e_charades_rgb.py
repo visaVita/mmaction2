@@ -127,7 +127,11 @@ evaluation = dict(
     interval=1, metrics=['mean_average_precision'])
 
 # optimizer
+<<<<<<< HEAD:configs/recognition/slowfast/slowfast_cot_r50_8x8x1_256e_charades_rgb.py
 optimizer = dict(type='SGD', lr=0.05, momentum=0.9, weight_decay=1e-4)
+=======
+optimizer = dict(type='SGD', lr=0.075, momentum=0.9, weight_decay=1e-4)
+>>>>>>> 19f7cd184e882bda99dae609c0b033649a35af2d:configs/recognition/slowfast/slowfast_cot_r50_4x16x1_256e_charades_rgb.py
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
 lr_config = dict(
