@@ -532,7 +532,7 @@ class ResNet3d(nn.Module):
                  non_local=(0, 0, 0, 0),
                  non_local_cfg=dict(),
                  zero_init_residual=True,
-                 CoT=False,
+                 CoT=(0, 0, 0, 0),
                  **kwargs):
         super().__init__()
         if depth not in self.arch_settings:
@@ -566,6 +566,7 @@ class ResNet3d(nn.Module):
         self.frozen_stages = frozen_stages
         self.stage_inflations = _ntuple(num_stages)(inflate)
         self.non_local_stages = _ntuple(num_stages)(non_local)
+        self.CoT_stages = _ntuple(num_stages)(CoT)
         self.inflate_style = inflate_style
         self.conv_cfg = conv_cfg
         self.norm_cfg = norm_cfg
@@ -605,6 +606,7 @@ class ResNet3d(nn.Module):
                 act_cfg=self.act_cfg,
                 non_local=self.non_local_stages[i],
                 non_local_cfg=self.non_local_cfg,
+                CoT=self.CoT_stages[i],
                 inflate=self.stage_inflations[i],
                 inflate_style=self.inflate_style,
                 with_cp=with_cp,
@@ -630,6 +632,7 @@ class ResNet3d(nn.Module):
                        inflate_style='3x1x1',
                        non_local=0,
                        non_local_cfg=dict(),
+                       CoT=0,
                        norm_cfg=None,
                        act_cfg=None,
                        conv_cfg=None,
@@ -677,7 +680,9 @@ class ResNet3d(nn.Module):
                                             int) else (inflate, ) * blocks
         non_local = non_local if not isinstance(
             non_local, int) else (non_local, ) * blocks
-        assert len(inflate) == blocks and len(non_local) == blocks
+        CoT = CoT if not isinstance(
+            CoT, int) else (CoT, ) * blocks
+        assert len(inflate) == blocks and len(non_local) == blocks and len(CoT) == blocks
         downsample = None
         if spatial_stride != 1 or inplanes != planes * block.expansion:
             downsample = ConvModule(
@@ -704,11 +709,11 @@ class ResNet3d(nn.Module):
                 inflate_style=inflate_style,
                 non_local=(non_local[0] == 1),
                 non_local_cfg=non_local_cfg,
+                CoT=(CoT[0] == 1),
                 norm_cfg=norm_cfg,
                 conv_cfg=conv_cfg,
                 act_cfg=act_cfg,
                 with_cp=with_cp,
-                CoT=False,
                 **kwargs))
         inplanes = planes * block.expansion
         for i in range(1, blocks):
@@ -724,11 +729,11 @@ class ResNet3d(nn.Module):
                     inflate_style=inflate_style,
                     non_local=(non_local[i] == 1),
                     non_local_cfg=non_local_cfg,
+                    CoT=(CoT[i] == 1),
                     norm_cfg=norm_cfg,
                     conv_cfg=conv_cfg,
                     act_cfg=act_cfg,
                     with_cp=with_cp,
-                    CoT=CoT,
                     **kwargs))
 
         return nn.Sequential(*layers)

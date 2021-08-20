@@ -18,7 +18,8 @@ model = dict(
             pool1_stride_t=1,
             inflate=(0, 0, 1, 1),
             norm_eval=False,
-            CoT=True
+            CoT=(0, 0, 0, 0),
+            frozen_stages=-1
             ),
         fast_pathway=dict(
             type='resnet3d',
@@ -30,7 +31,8 @@ model = dict(
             conv1_stride_t=1,
             pool1_stride_t=1,
             norm_eval=False,
-            CoT=True
+            CoT=(0, 0, 0, 0),
+            frozen_stages=-1
             )),
     cls_head=dict(
         type='SlowFastHead',
@@ -102,7 +104,7 @@ test_pipeline = [
 ]
 data = dict(
     videos_per_gpu=16,
-    workers_per_gpu=4,
+    workers_per_gpu=2,
     val_dataloader=dict(videos_per_gpu=1),
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(
@@ -127,17 +129,23 @@ evaluation = dict(
     interval=1, metrics=['mean_average_precision'])
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.05, momentum=0.9, weight_decay=1e-4)
+optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=1e-4)
 
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
 lr_config = dict(
     policy='step',
-    step=[20, 40],
+    step=[40, 60],
     warmup='linear',
     warmup_by_epoch=True,
     warmup_iters=2,
     warmup_ratio=0.0001)
+""" lr_config = dict(
+    policy='CosineAnnealing',
+    min_lr=0,
+    warmup='linear',
+    warmup_by_epoch=True,
+    warmup_iters=34) """
 total_epochs = 80
 
 # runtime settings

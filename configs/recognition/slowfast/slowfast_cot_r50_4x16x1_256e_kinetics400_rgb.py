@@ -1,7 +1,7 @@
 model = dict(
     type='Recognizer3D',
     backbone=dict(
-        type='SlowFast_CoT',
+        type='ResNet3dSlowFast',
         pretrained=None,
         resample_rate=8,  # tau
         speed_ratio=8,  # alpha
@@ -11,12 +11,16 @@ model = dict(
             depth=50,
             pretrained=None,
             lateral=True,
+            fusion_kernel=7,
             conv1_kernel=(1, 7, 7),
             dilations=(1, 1, 1, 1),
             conv1_stride_t=1,
             pool1_stride_t=1,
             inflate=(0, 0, 1, 1),
-            norm_eval=False),
+            norm_eval=False,
+            CoT=(0, 0, 1, 1),
+            frozen_stages=-1
+            ),
         fast_pathway=dict(
             type='resnet3d',
             depth=50,
@@ -26,7 +30,10 @@ model = dict(
             conv1_kernel=(5, 7, 7),
             conv1_stride_t=1,
             pool1_stride_t=1,
-            norm_eval=False)),
+            norm_eval=False,
+            CoT=(0, 0, 1, 1),
+            frozen_stages=-1
+            )),
     cls_head=dict(
         type='SlowFastHead',
         in_channels=2304,  # 2048+256
@@ -94,7 +101,7 @@ test_pipeline = [
     dict(type='ToTensor', keys=['imgs'])
 ]
 data = dict(
-    videos_per_gpu=12,
+    videos_per_gpu=20,
     workers_per_gpu=4,
     train=dict(
         type=dataset_type,
@@ -115,7 +122,7 @@ evaluation = dict(
     interval=5, metrics=['top_k_accuracy', 'mean_class_accuracy'])
 
 optimizer = dict(
-    type='SGD', lr=0.10, momentum=0.9,
+    type='SGD', lr=0.125, momentum=0.9,
     weight_decay=0.0001)  # this lr is used for 8 gpus
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
@@ -128,21 +135,22 @@ lr_config = dict(
 total_epochs = 120
 
 # runtime settings
-checkpoint_config = dict(interval=1)
+checkpoint_config = dict(interval=5)
 workflow = [('train', 1)]
 log_config = dict(
     interval=20,
     hooks=[
         dict(type='TextLoggerHook'),
-        #dict(type='TensorboardLoggerHook'),
+        dict(type='TensorboardLoggerHook'),
     ])
 log_level = 'INFO'
-work_dir = './work_dirs/slowfast_cot_r50_4x16x1_256e_kinetics400_rgb'
+work_dir = './work_dirs/slowfast_cot_r50_4x16x1_256e_kinetics400_rgb_0011_0011'
 #load_from = ('https://download.openmmlab.com/mmaction/recognition/slowfast/'
 #             'slowfast_r50_4x16x1_256e_kinetics400_rgb/'
 #             'slowfast_r50_4x16x1_256e_kinetics400_rgb_20200704-bcde7ed7.pth')
 load_from = None
 find_unused_parameters = False
-#resume_from = './work_dirs/slowfast_cot_r50_4x16x1_256e_kinetics400_rgb/best_top1_acc_epoch_8.pth'
-resume_from = './work_dirs/slowfast_cot_r50_4x16x1_256e_kinetics400_rgb_fix/epoch_20.pth'
+# resume_from = './work_dirs/slowfast_cot_r50_4x16x1_256e_kinetics400_rgb/best_top1_acc_epoch_8.pth'
+# resume_from = './work_dirs/slowfast_cot_r50_4x16x1_256e_kinetics400_rgb_fix/epoch_20.pth'
+resume_from = None
 dist_params = dict(backend='nccl')

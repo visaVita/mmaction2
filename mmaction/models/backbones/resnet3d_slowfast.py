@@ -41,13 +41,12 @@ class ResNet3dPathway(ResNet3d):
                  speed_ratio=8,
                  channel_ratio=8,
                  fusion_kernel=5,
-                 CoT=False,
                  **kwargs):
+        
         self.lateral = lateral
         self.speed_ratio = speed_ratio
         self.channel_ratio = channel_ratio
         self.fusion_kernel = fusion_kernel
-        self.CoT = CoT
         super().__init__(*args, **kwargs)
         self.inplanes = self.base_channels
         if self.lateral:
@@ -100,6 +99,7 @@ class ResNet3dPathway(ResNet3d):
                        inflate_style='3x1x1',
                        non_local=0,
                        non_local_cfg=dict(),
+                       CoT=0,
                        conv_cfg=None,
                        norm_cfg=None,
                        act_cfg=None,
@@ -147,7 +147,9 @@ class ResNet3dPathway(ResNet3d):
                                             int) else (inflate, ) * blocks
         non_local = non_local if not isinstance(
             non_local, int) else (non_local, ) * blocks
-        assert len(inflate) == blocks and len(non_local) == blocks
+        CoT = CoT if not isinstance(
+            CoT, int) else (CoT, ) * blocks
+        assert len(inflate) == blocks and len(non_local) == blocks and len(CoT) == blocks
         if self.lateral:
             lateral_inplanes = inplanes * 2 // self.channel_ratio
         else:
@@ -183,9 +185,8 @@ class ResNet3dPathway(ResNet3d):
                 norm_cfg=norm_cfg,
                 act_cfg=act_cfg,
                 with_cp=with_cp,
-                CoT=False))
+                CoT=(CoT[0] == 1)))
         inplanes = planes * block.expansion
-
         for i in range(1, blocks):
             layers.append(
                 block(
@@ -203,7 +204,7 @@ class ResNet3dPathway(ResNet3d):
                     norm_cfg=norm_cfg,
                     act_cfg=act_cfg,
                     with_cp=with_cp,
-                    CoT=self.CoT))
+                    CoT=(CoT[i] == 1)))
 
         return nn.Sequential(*layers)
 
@@ -440,7 +441,7 @@ class ResNet3dSlowFast(nn.Module):
                      conv1_stride_t=1,
                      pool1_stride_t=1,
                      inflate=(0, 0, 1, 1),
-                     CoT=True
+                     CoT=(0, 0, 0, 1)
                      ),
                  fast_pathway=dict(
                      type='resnet3d',
@@ -451,7 +452,7 @@ class ResNet3dSlowFast(nn.Module):
                      conv1_kernel=(5, 7, 7),
                      conv1_stride_t=1,
                      pool1_stride_t=1,
-                     CoT=True)):
+                     CoT=(0, 0, 0, 1))):
         super().__init__()
         self.pretrained = pretrained
         self.resample_rate = resample_rate
