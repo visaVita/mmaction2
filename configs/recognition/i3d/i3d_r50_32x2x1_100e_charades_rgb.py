@@ -1,51 +1,35 @@
+_base_ = [
+    '../../_base_/schedules/sgd_100e.py',
+    '../../_base_/default_runtime.py'
+]
 model = dict(
     type='Recognizer3D',
     backbone=dict(
-        type='ResNet3dSlowFast',
-        pretrained=None,
-        resample_rate=4,  # tau
-        speed_ratio=4,  # alpha
-        channel_ratio=8,  # beta_inv
-        slow_pathway=dict(
-            type='resnet3d',
-            depth=50,
-            pretrained=None,
-            lateral=True,
-            fusion_kernel=7,
-            conv1_kernel=(1, 7, 7),
-            dilations=(1, 1, 1, 1),
-            conv1_stride_t=1,
-            pool1_stride_t=1,
-            inflate=(0, 0, 1, 1),
-            norm_eval=False,
-            CoT=(0, 0, 0, 0),
-            frozen_stages=-1
-            ),
-        fast_pathway=dict(
-            type='resnet3d',
-            depth=50,
-            pretrained=None,
-            lateral=False,
-            base_channels=8,
-            conv1_kernel=(5, 7, 7),
-            conv1_stride_t=1,
-            pool1_stride_t=1,
-            norm_eval=False,
-            CoT=(0, 0, 0, 0),
-            frozen_stages=-1
-            )),
+        type='ResNet3d',
+        pretrained2d=True,
+        pretrained='torchvision://resnet50',
+        depth=50,
+        conv1_kernel=(5, 7, 7),
+        conv1_stride_t=2,
+        pool1_stride_t=2,
+        conv_cfg=dict(type='Conv3d'),
+        norm_eval=False,
+        inflate=((1, 1, 1), (1, 0, 1, 0), (1, 0, 1, 0, 1, 0), (0, 1, 0)),
+        zero_init_residual=False),
     cls_head=dict(
-        type='SlowFastHead',
-        in_channels=2304,  # 2048+256
+        type='I3DHead',
         num_classes=157,
-        multi_class=True,
+        in_channels=2048,
         spatial_type='avg',
-        loss_cls=dict(type='BCELossWithLogits'),
-        dropout_ratio=0.5),
+        dropout_ratio=0.5,
+        init_std=0.01,
+        multi_class=True,
+        loss_cls=dict(type='BCELossWithLogits')),
     # model training and testing settings
     train_cfg=None,
     test_cfg=dict(maximize_clips='score'))
-    
+
+# dataset settings
 dataset_type = 'CharadesDataset'
 data_root = 'data/charades/rawframes'
 data_root_val = 'data/charades/rawframes'
@@ -57,13 +41,12 @@ img_norm_cfg = dict(
 train_pipeline = [
     dict(
         type='SampleCharadesFrames',
-        clip_len=32,
+        clip_len=64,
         frame_interval=2,
         num_clips=1),
     dict(type='RawFrameDecode'),
-    dict(type='Resize', scale=(-1, 256)),
-    dict(type='RandomResizedCrop'),
-    dict(type='Resize', scale=(224, 224), keep_ratio=False),
+    dict(type='RandomRescale', scale_range=(256, 340)),
+    dict(type='RandomCrop', size=224),
     dict(type='Flip', flip_ratio=0.5),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
@@ -73,7 +56,7 @@ train_pipeline = [
 val_pipeline = [
     dict(
         type='SampleCharadesFrames',
-        clip_len=32,
+        clip_len=64,
         frame_interval=2,
         num_clips=10,
         test_mode=True),
@@ -89,7 +72,7 @@ val_pipeline = [
 test_pipeline = [
     dict(
         type='SampleCharadesFrames',
-        clip_len=32,
+        clip_len=64,
         frame_interval=2,
         num_clips=10,
         test_mode=True),
@@ -104,7 +87,7 @@ test_pipeline = [
 ]
 data = dict(
     videos_per_gpu=16,
-    workers_per_gpu=2,
+    workers_per_gpu=4,
     val_dataloader=dict(videos_per_gpu=1),
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(
@@ -116,54 +99,33 @@ data = dict(
         type=dataset_type,
         ann_file=ann_file_val,
         data_prefix=data_root_val,
-        pipeline=val_pipeline,
-        test_mode=True),
+        pipeline=val_pipeline),
     test=dict(
         type=dataset_type,
-        ann_file=ann_file_test,
+        ann_file=ann_file_val,
         data_prefix=data_root_val,
-        pipeline=test_pipeline,
-        test_mode=True))
-
+        pipeline=test_pipeline))
 evaluation = dict(
-    interval=1, metrics=['mean_average_precision'])
+    interval=5, metrics=['mean_average_precision'])
 
-# optimizer
-optimizer = dict(type='SGD', lr=0.1, momentum=0.9, weight_decay=1e-4)
-
-optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
-# learning policy
-lr_config = dict(
-    policy='step',
-    step=[40, 60],
-    warmup='linear',
-    warmup_by_epoch=True,
-    warmup_iters=2,
-    warmup_ratio=0.0001)
-""" lr_config = dict(
-    policy='CosineAnnealing',
-    min_lr=0,
-    warmup='linear',
-    warmup_by_epoch=True,
-    warmup_iters=34) """
-total_epochs = 80
-
-# runtime settings
-checkpoint_config = dict(interval=1)
-workflow = [('train', 1)]
 log_config = dict(
-    interval=10,
+    interval=20,
     hooks=[
         dict(type='TextLoggerHook'),
-        dict(type='TensorboardLoggerHook'),
+        #dict(type='TensorboardLoggerHook'),
     ])
-log_level = 'INFO'
-work_dir = './work_dirs/slowfast_cot_r50_8x8x1_256e_charades_rgb'
 
-load_from = ('https://download.openmmlab.com/mmaction/recognition/'
-             'slowfast/slowfast_r50_8x8x1_256e_kinetics400_rgb/'
-             'slowfast_r50_8x8x1_256e_kinetics400_rgb_20200716-73547d2b.pth')
-# load_from = None
-find_unused_parameters = False
-resume_from = None
-dist_params = dict(backend='nccl')
+optimizer = dict(
+    type='SGD',
+    lr=0.05,  # this lr is used for 8 gpus
+    momentum=0.9,
+    weight_decay=0.0001)
+optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
+# learning policy
+lr_config = dict(policy='step', step=[40, 80])
+total_epochs = 100
+
+# runtime settings
+checkpoint_config = dict(interval=5)
+load_from = 'https://download.openmmlab.com/mmaction/recognition/i3d/i3d_r50_256p_32x2x1_100e_kinetics400_rgb/i3d_r50_256p_32x2x1_100e_kinetics400_rgb_20200801-7d9f44de.pth'
+work_dir = './work_dirs/i3d_r50_32x2x1_100e_charades_rgb/'

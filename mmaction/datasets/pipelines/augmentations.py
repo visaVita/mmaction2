@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from distutils.version import LooseVersion
 
 import cv2
+import math
 import mmcv
 import numpy as np
 from torch.nn.modules.utils import _pair
@@ -1131,7 +1132,8 @@ class Resize:
                  scale,
                  keep_ratio=True,
                  interpolation='bilinear',
-                 lazy=False):
+                 lazy=False,
+                 ):
         if isinstance(scale, float):
             if scale <= 0:
                 raise ValueError(f'Invalid scale {scale}, must be positive.')
@@ -1189,6 +1191,7 @@ class Resize:
             results['scale_factor'] = np.array([1, 1], dtype=np.float32)
         img_h, img_w = results['img_shape']
 
+        
         if self.keep_ratio:
             new_w, new_h = mmcv.rescale_size((img_w, img_h), self.scale)
         else:

@@ -6,6 +6,8 @@ python tools/train.py configs/recognition/slowfast/slowfast_cot_r50_4x16x1_256e_
 
 ./tools/dist_train.sh configs/recognition/slowfast/slowfast_cot_r50_8x8x1_256e_charades_rgb.py 2 --validate --seed 42 --deterministic
 
+
+
 git config --global https.proxy https://127.0.0.1:58591
 git config --global https.proxy http://127.0.0.1:58591
 git config --global https.proxy 'socks5://127.0.0.1:51837'
