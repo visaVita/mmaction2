@@ -130,23 +130,23 @@ evaluation = dict(
     interval=5, metrics=['mean_average_precision'])
 
 # optimizer
-optimizer = dict(type='SGD', lr=0.0375, momentum=0.9, weight_decay=1e-4)
+optimizer = dict(type='AdamW', lr=1e-5, betas=(0.9, 0.9999), weight_decay=1e-2)
 
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
-lr_config = dict(
+""" lr_config = dict(
     policy='step',
     step=[20, 49],
     warmup='linear',
     warmup_by_epoch=True,
     warmup_iters=4,
-    warmup_ratio=0.0001)
-""" lr_config = dict(
+    warmup_ratio=0.0001) """
+lr_config = dict(
     policy='CosineAnnealing',
     min_lr=0,
     warmup='linear',
     warmup_by_epoch=True,
-    warmup_iters=5) """
+    warmup_iters=34)
 total_epochs = 60
 
 # runtime settings
