@@ -12,7 +12,7 @@ class transformer_mlc_optimizer_constructor(DefaultOptimizerConstructor):
             'weight_decay': self.base_wd
         })
         params.append({
-            'params': model.backbone.parameters(),
+            'params': model.cls_head.parameters(),
             'lr': self.base_lr*10,
             'weight_decay': self.base_wd
         })
