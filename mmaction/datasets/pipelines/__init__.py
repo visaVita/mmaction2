@@ -3,7 +3,7 @@ from .augmentations import (AudioAmplify, CenterCrop, ColorJitter, Flip, Fuse,
                             MultiScaleCrop, Normalize, PytorchVideoTrans,
                             RandomCrop, RandomRescale, RandomResizedCrop,
                             RandomScale, Resize, TenCrop, ThreeCrop,
-                            TorchvisionTrans)
+                            TorchvisionTrans, RandomErasing)
 from .compose import Compose
 from .formating import (Collect, FormatAudioShape, FormatShape, ImageToTensor,
                         Rename, ToDataContainer, ToTensor, Transpose)
@@ -35,5 +35,5 @@ __all__ = [
     'RandomRescale', 'PyAVDecodeMotionVector', 'Rename', 'Imgaug',
     'UniformSampleFrames', 'PoseDecode', 'LoadKineticsPose',
     'GeneratePoseTarget', 'PIMSInit', 'PIMSDecode', 'TorchvisionTrans',
-    'PytorchVideoTrans', 'SampleCharadesFrames'
+    'PytorchVideoTrans', 'SampleCharadesFrames', 'RandomErasing',
 ]

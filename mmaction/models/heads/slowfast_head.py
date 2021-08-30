@@ -104,13 +104,15 @@ class SlowFastHead(BaseHead):
             self.transformer_t = Transformer(d_model=256, nhead=4, num_encoder_layers=0, 
                                            num_decoder_layers=2, dim_feedforward=256, 
                                            dropout=0.1)
-            self.pos_enc_module = PositionalEnconding(d_model=128, dropout=0.1, max_len=5000, ret_enc=True)
+            self.pos_enc_module_s = PositionalEnconding(d_model=2048, dropout=0.1, max_len=5000, ret_enc=True)
+            self.pos_enc_module_t = PositionalEnconding(d_model=256, dropout=0.1, max_len=5000, ret_enc=True)
             # self.input_proj_s = nn.Conv1d(2048, 2048, 1)
             # self.input_proj_t = nn.Conv1d(256, 128, 1)
-            self.query_embed = nn.Embedding(num_classes, 128)
+            self.query_embed_s = nn.Embedding(num_classes, 2048)
+            self.query_embed_t = nn.Embedding(num_classes, 256)
             self.fc_cls = GroupWiseLinear(num_classes, in_channels)
-            self.temporal_pool = nn.AdaptiveAvgPool3d(1, None, None)
-            self.spatial_pool  = nn.AdaptiveAvgPool3d(None, 1, 1)
+            self.temporal_pool = nn.AdaptiveAvgPool3d((1, None, None))
+            self.spatial_pool  = nn.AdaptiveAvgPool3d((None, 1, 1))
         else:
             self.fc_cls = nn.Linear(in_channels, num_classes)
 
@@ -140,7 +142,7 @@ class SlowFastHead(BaseHead):
             torch.Tensor: The classification scores for input samples.
         """
         # ([N, channel_fast, T, H, W], [(N, channel_slow, T, H, W)])
-        x_fast, x_slow = x
+        x_slow, x_fast = x
         # ([N, channel_fast, 1, 1, 1], [N, channel_slow, 1, 1, 1])
         # x_fast = self.avg_pool(x_fast)
         # x_slow = self.avg_pool(x_slow)
@@ -166,15 +168,18 @@ class SlowFastHead(BaseHead):
             # bs, c = x.shape
             # x = x.repeat(self.num_classes, 1, 1).permute(1, 2, 0)
             # x = self.input_proj(x)
-            pos_s = self.pos_enc_module(F_s.permute(0, 2, 1))
+            pos_s = self.pos_enc_module_s(F_s.permute(0, 2, 1))
             pos_s = pos_s.permute(0, 2, 1)
-            pos_t = self.pos_enc_module(F_t.permute(0, 2, 1))
+            pos_t = self.pos_enc_module_t(F_t.permute(0, 2, 1))
             pos_t = pos_t.permute(0, 2, 1)
+            
+            # import ipdb; ipdb.set_trace()
             # print(x.shape, pos.shape)
-            query_input = self.query_embed.weight
-            hs = self.transformer_s(F_s, query_input, pos_s)[0]
-            ht = self.transformer_t(F_t, query_input, pos_t)[0]
-            h = torch.cat([hs, ht], dim=2)
+            query_input_s = self.query_embed_s.weight
+            query_input_t = self.query_embed_t.weight
+            hs = self.transformer_s(F_s, query_input_s, pos_s)[0]
+            ht = self.transformer_t(F_t, query_input_t, pos_t)[0]
+            h = torch.cat([hs, ht], dim=3)
             cls_score = self.fc_cls(h[-1])
         else:
             cls_score = self.fc_cls(x)
