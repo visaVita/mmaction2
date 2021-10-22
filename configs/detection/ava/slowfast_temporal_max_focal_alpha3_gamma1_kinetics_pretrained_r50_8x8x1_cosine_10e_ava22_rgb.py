@@ -116,7 +116,7 @@ val_pipeline = [
 ]
 
 data = dict(
-    videos_per_gpu=6,
+    videos_per_gpu=12,
     workers_per_gpu=4,
     val_dataloader=dict(videos_per_gpu=1),
     test_dataloader=dict(videos_per_gpu=1),
@@ -140,7 +140,7 @@ data = dict(
         data_prefix=data_root))
 data['test'] = data['val']
 # optimizer
-optimizer = dict(type='SGD', lr=0.075, momentum=0.9, weight_decay=0.00001)
+optimizer = dict(type='SGD', lr=0.0375, momentum=0.9, weight_decay=0.00001)
 # this lr is used for 8 gpus
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy

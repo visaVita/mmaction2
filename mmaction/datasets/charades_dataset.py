@@ -11,7 +11,7 @@ class CharadesDataset(BaseDataset):
 
     def __init__(self,
                  ann_file,
-                                  pipeline,
+                 pipeline,
                  data_prefix=None,
                  test_mode=False,
                  filename_tmpl_prefix='{}',

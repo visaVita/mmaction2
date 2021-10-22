@@ -4,9 +4,12 @@ from collections.abc import Sequence
 from distutils.version import LooseVersion
 
 import cv2
+import math
 import mmcv
 import numpy as np
 from torch.nn.modules.utils import _pair
+import timm.data as tdata
+import torch
 
 from ..builder import PIPELINES
 from .formating import to_tensor
@@ -502,6 +505,41 @@ class Imgaug:
                 ] for bbox in bbox_aug.items]
 
         results['img_shape'] = (img_h, img_w)
+
+        return results
+
+@PIPELINES.register_module()
+class RandomErasing(tdata.random_erasing.RandomErasing):
+    def __init__(self, device='cpu', **args):
+        super().__init__(device=device, **args)
+
+    def __call__(self, results):
+        in_type = results['imgs'][0].dtype.type
+
+        rand_state = random.getstate()
+        torchrand_state = torch.get_rng_state()
+        numpyrand_state = np.random.get_state()
+        # not using cuda to preserve the determiness
+
+        out_frame = []
+        for frame in results['imgs']:
+            random.setstate(rand_state)
+            torch.set_rng_state(torchrand_state)
+            np.random.set_state(numpyrand_state)
+            frame = super().__call__(torch.from_numpy(frame).permute(2, 0, 1)).permute(1, 2, 0).numpy()
+            out_frame.append(frame)
+
+        results['imgs'] = out_frame
+        img_h, img_w, _ = results['imgs'][0].shape
+
+        out_type = results['imgs'][0].dtype.type
+        assert in_type == out_type, \
+            ('Timmaug input dtype and output dtype are not the same. ',
+             f'Convert from {in_type} to {out_type}')
+
+        if 'gt_bboxes' in results:
+            raise NotImplementedError('only support recognition now')
+        assert results['img_shape'] == (img_h, img_w)
 
         return results
 
@@ -1131,7 +1169,8 @@ class Resize:
                  scale,
                  keep_ratio=True,
                  interpolation='bilinear',
-                 lazy=False):
+                 lazy=False,
+                 ):
         if isinstance(scale, float):
             if scale <= 0:
                 raise ValueError(f'Invalid scale {scale}, must be positive.')
@@ -1189,6 +1228,7 @@ class Resize:
             results['scale_factor'] = np.array([1, 1], dtype=np.float32)
         img_h, img_w = results['img_shape']
 
+        
         if self.keep_ratio:
             new_w, new_h = mmcv.rescale_size((img_w, img_h), self.scale)
         else:
@@ -1616,6 +1656,7 @@ class ColorJitter:
         return repr_str
 
 
+
 @PIPELINES.register_module()
 class CenterCrop(RandomCrop):
     """Crop the center area from images.
@@ -1713,6 +1754,54 @@ class CenterCrop(RandomCrop):
     def __repr__(self):
         repr_str = (f'{self.__class__.__name__}(crop_size={self.crop_size}, '
                     f'lazy={self.lazy})')
+        return repr_str
+
+@PIPELINES.register_module()
+class Cutout(object):
+    """Randomly mask out one or more patches from an image.
+    Args:
+        n_holes (int): Number of patches to cut out of each image.
+        length (int): The length (in pixels) of each square patch.
+    """
+    def __init__(self, n_holes, length):
+        self.n_holes = n_holes
+        self.length = length
+
+    def __call__(self, results):
+        """
+        Args:
+            img (Tensor): Tensor image of size (C, H, W).
+        Returns:
+            Tensor: Image with n_holes of dimension length x length cut out of it.
+        """
+        imgs = results['imgs']
+        h, w = results['imgs'][0].shape[:2]
+
+        mask = np.ones((h, w), np.float32)
+
+        for n in range(self.n_holes):
+            y = np.random.randint(h)
+            x = np.random.randint(w)
+
+            y1 = np.clip(y - self.length // 2, 0, h)
+            y2 = np.clip(y + self.length // 2, 0, h)
+            x1 = np.clip(x - self.length // 2, 0, w)
+            x2 = np.clip(x + self.length // 2, 0, w)
+
+            mask[y1: y2, x1: x2] = 0.
+
+        mask = torch.from_numpy(mask)
+        mask = mask.expand_as(imgs[0])
+        for i, img in imgs:
+            img = img * mask
+            imgs[i] = img
+        results['imgs'] = imgs
+
+        return results
+    
+    def __repr__(self):
+        repr_str = (f'{self.__class__.__name__}(n_holes={self.n_holes}), '
+                    f'length={self.length})')
         return repr_str
 
 

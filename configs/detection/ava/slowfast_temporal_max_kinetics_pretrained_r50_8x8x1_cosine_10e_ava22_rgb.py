@@ -34,14 +34,18 @@ model = dict(
             type='SingleRoIExtractor3D',
             roi_layer_type='RoIAlign',
             output_size=8,
-            with_temporal_pool=True,
-            temporal_pool_mode='max'),
+            with_temporal_pool=False,
+            # with_temporal_pool=False,
+            # temporal_pool_mode='max'
+            ),
         bbox_head=dict(
             type='BBoxHeadAVA',
             dropout_ratio=0.5,
             in_channels=2304,
             num_classes=81,
-            multilabel=True)),
+            multilabel=True,
+            temporal_pool_type='max'),
+            ),
     train_cfg=dict(
         rcnn=dict(
             assigner=dict(
@@ -117,7 +121,7 @@ val_pipeline = [
 
 data = dict(
     videos_per_gpu=6,
-    workers_per_gpu=4,
+    workers_per_gpu=2,
     val_dataloader=dict(videos_per_gpu=1),
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(
@@ -140,7 +144,16 @@ data = dict(
         data_prefix=data_root))
 data['test'] = data['val']
 # optimizer
-optimizer = dict(type='SGD', lr=0.075, momentum=0.9, weight_decay=0.00001)
+""" optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.00001, 
+                 constructor='transformer_mlc_optimizer_constructor'
+) """
+optimizer = dict(type='AdamW',
+                 lr=2e-4,
+                 betas=(0.9, 0.9999),
+                 weight_decay=1e-2,
+                 # paramwise_cfg = dict(custom_keys={'.backbone': dict(lr_mult=0.1)}),
+                 constructor='transformer_mlc_optimizer_constructor'
+)
 # this lr is used for 8 gpus
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
@@ -163,6 +176,8 @@ log_config = dict(
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 work_dir = './work_dirs/slowfast_temporal_max_kinetics_pretrained_r50_8x8x1_cosine_10e_ava22_rgb'  # noqa: E501
-load_from = 'https://download.openmmlab.com/mmaction/recognition/slowfast/slowfast_r50_8x8x1_256e_kinetics400_rgb/slowfast_r50_8x8x1_256e_kinetics400_rgb_20200716-73547d2b.pth'  # noqa: E501
+# load_from = 'model_zoo/AVA/slowfast_r50_8x8x1_256e_kinetics400_rgb_20200716-73547d2b.pth'
+load_from = 'model_zoo/AVA/slowfast_temporal_max_focal_alpha3_gamma1_kinetics_pretrained_r50_8x8x1_cosine_10e_ava22_rgb-345618cd.pth'
+# load_from = 'https://download.openmmlab.com/mmaction/recognition/slowfast/slowfast_r50_8x8x1_256e_kinetics400_rgb/slowfast_r50_8x8x1_256e_kinetics400_rgb_20200716-73547d2b.pth'  # noqa: E501
 resume_from = None
-find_unused_parameters = False
+find_unused_parameters = True

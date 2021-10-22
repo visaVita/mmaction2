@@ -122,7 +122,7 @@ evaluation = dict(
     interval=5, metrics=['top_k_accuracy', 'mean_class_accuracy'])
 
 optimizer = dict(
-    type='SGD', lr=0.125, momentum=0.9,
+    type='SGD', lr=0.625, momentum=0.9,
     weight_decay=0.0001)  # this lr is used for 8 gpus
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
@@ -151,6 +151,6 @@ work_dir = './work_dirs/slowfast_cot_r50_4x16x1_256e_kinetics400_rgb_0011_0011'
 load_from = None
 find_unused_parameters = False
 # resume_from = './work_dirs/slowfast_cot_r50_4x16x1_256e_kinetics400_rgb/best_top1_acc_epoch_8.pth'
-# resume_from = './work_dirs/slowfast_cot_r50_4x16x1_256e_kinetics400_rgb_fix/epoch_20.pth'
-resume_from = None
+resume_from = './work_dirs/slowfast_cot_r50_4x16x1_256e_kinetics400_rgb_0011_0011/best_top1_acc_epoch_5.pth'
+# resume_from = None
 dist_params = dict(backend='nccl')

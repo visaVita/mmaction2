@@ -5,8 +5,9 @@ import os.path as osp
 import sys
 import warnings
 from multiprocessing import Pool
+from subprocess import call
 
-import mmcv
+# import mmcv
 import numpy as np
 
 def extract_frame_ffmpeg(vid_item):
@@ -14,7 +15,7 @@ def extract_frame_ffmpeg(vid_item):
     # act_name = osp.basename(osp.dirname(vid_path))
     vid = os.path.splitext(os.path.split(vid_path)[1])[0]
     out_full_path = osp.join(args.out_dir, vid)
-    out_name = osp.join(out_full_path, 'img_%05d.jpg')
+    out_name = out_full_path+'/img_%05d.jpg'
     #out_full_path = osp.join(args.out_dir, act_name)
     #out_name = osp.join(out_full_path, 'img_%05d.jpg')
     # print(out_name)
@@ -218,6 +219,15 @@ if __name__ == '__main__':
             if not osp.isdir(new_dir):
                 print(f'Creating folder: {new_dir}')
                 os.makedirs(new_dir)
+    
+    if args.level == 1:
+        vids = os.listdir(args.src_dir)
+        for vid in vids:
+            vid = os.path.splitext(vid)[0]
+            new_dir = osp.join(args.out_dir, vid)
+            if not osp.isdir(new_dir):
+                print(f'Creating folder: {new_dir}')
+                os.makedirs(new_dir)
 
     if args.input_frames:
         print('Reading rgb frames from folder: ', args.src_dir)
@@ -253,7 +263,7 @@ if __name__ == '__main__':
 
     pool = Pool(args.num_worker)
     pool.map(
-        extract_frame,
+        extract_frame_ffmpeg,
         zip(fullpath_list, vid_list, range(len(vid_list)),
             len(vid_list) * [args.flow_type],
             len(vid_list) * [args.task]))
