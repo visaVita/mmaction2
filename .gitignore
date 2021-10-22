@@ -113,6 +113,8 @@ venv.bak/
 *.log.json
 benchlist.txt
 work_dirs/
+model_zoo/
+run.txt
 
 # Pytorch
 *.pth
