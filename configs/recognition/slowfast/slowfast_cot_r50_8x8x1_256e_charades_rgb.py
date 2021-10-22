@@ -18,7 +18,7 @@ model = dict(
             pool1_stride_t=1,
             inflate=(0, 0, 1, 1),
             norm_eval=False,
-            CoT=(0, 0, 0, 0),
+            CoT=(0, 0, 0, 1),
             frozen_stages=-1
             ),
         fast_pathway=dict(
@@ -31,7 +31,7 @@ model = dict(
             conv1_stride_t=1,
             pool1_stride_t=1,
             norm_eval=False,
-            CoT=(0, 0, 0, 0),
+            CoT=(0, 0, 0, 1),
             frozen_stages=-1
             )),
     cls_head=dict(
@@ -103,7 +103,7 @@ test_pipeline = [
     dict(type='ToTensor', keys=['imgs'])
 ]
 data = dict(
-    videos_per_gpu=16,
+    videos_per_gpu=8,
     workers_per_gpu=2,
     val_dataloader=dict(videos_per_gpu=1),
     test_dataloader=dict(videos_per_gpu=1),
