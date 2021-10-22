@@ -37,7 +37,7 @@ model = dict(
     cls_head=dict(
         type='SlowFastHead',
         in_channels=2304,  # 2048+256
-        num_classes=157,
+        num_classes=65,
         multi_class=True,
         spatial_type='avg',
         loss_cls=dict(type='AsymmetricLossOptimized', gamma_neg=4, gamma_pos=1, disable_torch_grad_focal_loss=True),
@@ -49,18 +49,19 @@ model = dict(
     # model training and testing settings
     train_cfg=None,
     test_cfg=dict(maximize_clips='score'))
-    
-dataset_type = 'CharadesDataset'
-data_root = 'data/charades/Charades_rgb'
-data_root_val = 'data/charades/Charades_rgb'
-ann_file_train = 'data/charades/annotations/charades_train_list_rawframes.csv'
-ann_file_val = 'data/charades/annotations/charades_val_list_rawframes.csv'
-ann_file_test = 'data/charades/annotations/charades_val_list_rawframes.csv'
+
+dataset_type = 'MultiThumosDataset'
+data_root = 'data/multithumos/rawframes'
+data_root_val = 'data/multithumos/rawframes'
+ann_file_train = 'data/multithumos/annotations/val.csv'
+ann_file_val = 'data/multithumos/annotations/test.csv'
+ann_file_test = 'data/multithumos/annotations/test.csv'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(
         type='SampleCharadesFrames',
+        num_classes=65,
         clip_len=64,
         frame_interval=2,
         num_clips=1),
@@ -76,9 +77,10 @@ train_pipeline = [
 val_pipeline = [
     dict(
         type='SampleCharadesFrames',
+        num_classes=65,
         clip_len=64,
         frame_interval=2,
-        num_clips=1,
+        num_clips=10,
         test_mode=True),
     dict(type='RawFrameDecode'),
     dict(type='Resize', scale=(-1, 256)),
@@ -92,6 +94,7 @@ val_pipeline = [
 test_pipeline = [
     dict(
         type='SampleCharadesFrames',
+        num_classes=65,
         clip_len=64,
         frame_interval=2,
         num_clips=10,
@@ -107,14 +110,14 @@ test_pipeline = [
 ]
 data = dict(
     videos_per_gpu=8,
-    workers_per_gpu=4,
+    workers_per_gpu=2,
     val_dataloader=dict(
         videos_per_gpu=1,
-        workers_per_gpu=1
+        workers_per_gpu=4
     ),
     test_dataloader=dict(
         videos_per_gpu=1,
-        workers_per_gpu=2
+        workers_per_gpu=4
     ),
     train=dict(
         type=dataset_type,
@@ -151,7 +154,7 @@ evaluation = dict(
     #                 }),)
 ) """
 optimizer = dict(type='AdamW',
-                 lr=4e-5,
+                 lr=2e-5,
                  betas=(0.9, 0.9999),
                  weight_decay=2e-2,
                  paramwise_cfg = dict(custom_keys={'backbone': dict(lr_mult=0.1),
@@ -172,41 +175,33 @@ optimizer_config = dict(
     warmup_iters=2
 ) """
 
-""" lr_config = dict(
-    policy='CosineAnnealing',
-    min_lr=0,
-    warmup='linear',
-    warmup_by_epoch=True,
-    warmup_iters=4) """
-
 lr_config = dict(
     policy='CosineRestart',
     periods=[20, 40, 60],
-    restart_weights=[1, 1, 1],
+    restart_weights=[1, 0.8, 0.6],
     min_lr = 0,
     warmup='linear',
     warmup_by_epoch=True,
-    warmup_iters=4
+    warmup_iters=2
 )
-
 total_epochs = 80
 
 # runtime settings
 checkpoint_config = dict(interval=5)
 workflow = [('train', 1)]
 log_config = dict(
-    interval=20,
+    interval=1,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
     ])
 log_level = 'INFO'
-work_dir = './work_dirs/slowfast_cot_r50_8x8x1_90e_charades_rgb'
+work_dir = './work_dirs/slowfast_cot_r50_8x8x1_120e_multithumos_rgb'
 
 load_from = ('https://download.openmmlab.com/mmaction/recognition/'
-                 'slowfast/slowfast_r50_8x8x1_256e_kinetics400_rgb/'
-                 'slowfast_r50_8x8x1_256e_kinetics400_rgb_20200716-73547d2b.pth')
-# load_from = ('/home/ckai/project/mmaction2/work_dirs/slowfast_cot_r50_8x8x1_57e_charades_rgb/map3642_lr_1875_asl_4_1_58e.pth')
+             'slowfast/slowfast_r50_8x8x1_256e_kinetics400_rgb/'
+             'slowfast_r50_8x8x1_256e_kinetics400_rgb_20200716-73547d2b.pth')
+# load_from = ('/home/ckai/project/mmaction2/work_dirs/slowfast_cot_r50_8x8x1_120e_multithumos_rgb/68e_2e-5_map7990.pth')
 # load_from = None
 find_unused_parameters = True
 resume_from = None

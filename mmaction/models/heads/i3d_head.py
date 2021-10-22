@@ -6,6 +6,7 @@ from mmcv.cnn import normal_init
 from ..builder import HEADS
 from .base import BaseHead
 from ...core import top_k_accuracy
+from ..common import PositionalEnconding, Transformer
 
 
 @HEADS.register_module()
@@ -31,12 +32,10 @@ class I3DHead(BaseHead):
                  spatial_type='avg',
                  dropout_ratio=0.5,
                  init_std=0.01,
-                 focal_gamma=0.,
-                 focal_alpha=1.,
-                 topk=(3, 5),
+                 transformer=False,
                  **kwargs):
         super().__init__(num_classes, in_channels, loss_cls, **kwargs)
-
+        self.transformer = transformer
         self.spatial_type = spatial_type
         self.dropout_ratio = dropout_ratio
         self.init_std = init_std
@@ -44,122 +43,59 @@ class I3DHead(BaseHead):
             self.dropout = nn.Dropout(p=self.dropout_ratio)
         else:
             self.dropout = None
-        self.fc_cls = nn.Linear(self.in_channels, self.num_classes)
-
-        if self.multi_class:
-            if topk is None:
-                self.topk = ()
-            elif isinstance(topk, int):
-                self.topk = (topk, )
-            elif isinstance(topk, tuple):
-                assert all([isinstance(k, int) for k in topk])
-                self.topk = topk
+        if self.transformer:
+            hidden_dim = 1024
+            self.transformer_s = Transformer(d_model=hidden_dim,
+                                            nhead=8,
+                                            num_encoder_layers=0,
+                                            num_decoder_layers=2,
+                                            dim_feedforward=hidden_dim*2,
+                                            dropout=0.2,
+                                            rm_first_self_attn=False,
+                                            rm_self_attn_dec=False
+            )
+            self.transformer_t = Transformer(d_model=hidden_dim,
+                                            nhead=8,
+                                            num_encoder_layers=0,
+                                            num_decoder_layers=2,
+                                            dim_feedforward=hidden_dim*2,
+                                            dropout=0.2,
+                                            rm_first_self_attn=False,
+                                            rm_self_attn_dec=False
+            )
+            self.pos_enc_module = PositionalEnconding(d_model=hidden_dim, dropout=0.1, max_len=5000, ret_enc=True)
+            if in_channels != hidden_dim:
+                self.transform = nn.Sequential(
+                    nn.Conv3d(in_channels, hidden_dim, 1),
+                    nn.ReLU(inplace=True),
+                    nn.BatchNorm3d(hidden_dim)
+                )
             else:
-                raise TypeError('topk should be int or tuple[int], '
-                                f'but get {type(topk)}')
-            # Class 0 is ignored when calculaing multilabel accuracy,
-            # so topk cannot be equal to num_classes
-            assert all([k < num_classes for k in self.topk])
+                self.transform = None
+            self.base_cls = nn.Linear(hidden_dim, num_classes)
+            self.temporal_pool = nn.AdaptiveMaxPool3d((1, None, None))
+            self.spatial_pool  = nn.AdaptiveAvgPool3d((None, 1, 1))
+            self.global_max_pool = nn.AdaptiveMaxPool3d((1, 1, 1))
+            self.mask_mat = nn.Parameter(torch.eye(self.num_classes).float())
+            self.fc_cls = nn.Linear(hidden_dim*2, num_classes)
 
-        self.focal_gamma = focal_gamma
-        self.focal_alpha = focal_alpha
-
-        if self.spatial_type == 'avg':
-            # use `nn.AdaptiveAvgPool3d` to adaptively match the in_channels.
-            self.avg_pool = nn.AdaptiveAvgPool3d((1, 1, 1))
         else:
-            self.avg_pool = None
+            self.fc_cls = nn.Linear(self.in_channels, self.num_classes)
 
-    @staticmethod
-    def recall_prec(pred_vec, target_vec):
-        """
-        Args:
-            pred_vec (tensor[N x C]): each element is either 0 or 1
-            target_vec (tensor[N x C]): each element is either 0 or 1
 
-        """
-        correct = pred_vec & target_vec
-        # Seems torch 1.5 has no auto type conversion
-        recall = correct.sum(1) / target_vec.sum(1).float()
-        prec = correct.sum(1) / (pred_vec.sum(1) + 1e-6)
-        return recall.mean(), prec.mean()
-
-    def multi_label_accuracy(self, pred, target, thr=0.5):
-        pred = pred.sigmoid()
-        pred_vec = pred > thr
-        # Target is 0 or 1, so using 0.5 as the borderline is OK
-        target_vec = target > 0.5
-        recall_thr, prec_thr = self.recall_prec(pred_vec, target_vec)
-
-        recalls, precs = [], []
-        for k in self.topk:
-            _, pred_label = pred.topk(k, 1, True, True)
-            pred_vec = pred.new_full(pred.size(), 0, dtype=torch.bool)
-
-            num_sample = pred.shape[0]
-            for i in range(num_sample):
-                pred_vec[i, pred_label[i]] = 1
-            recall_k, prec_k = self.recall_prec(pred_vec, target_vec)
-            recalls.append(recall_k)
-            precs.append(prec_k)
-        return recall_thr, prec_thr, recalls, precs
-
-    def loss(self,
-             cls_score,
-             labels,
-             label_weights=1.,
-             reduce=True):
-
-        losses = dict()
-
-        if labels.shape == torch.Size([]):
-            labels = labels.unsqueeze(0)
-        elif labels.dim() == 1 and labels.size()[0] == self.num_classes \
-                and cls_score.size()[0] == 1:
-            # Fix a bug when training with soft labels and batch size is 1.
-            # When using soft labels, `labels` and `cls_socre` share the same
-            # shape.
-            labels = labels.unsqueeze(0)
-
-        if not self.multi_class and cls_score.size() != labels.size():
-            top_k_acc = top_k_accuracy(cls_score.detach().cpu().numpy(),
-                                       labels.detach().cpu().numpy(), (1, 5))
-            losses['top1_acc'] = torch.tensor(
-                top_k_acc[0], device=cls_score.device)
-            losses['top5_acc'] = torch.tensor(
-                top_k_acc[1], device=cls_score.device)
-
-        elif self.multi_class and self.label_smooth_eps != 0:
-            labels = ((1 - self.label_smooth_eps) * labels +
-                      self.label_smooth_eps / self.num_classes)
-
-        if self.multi_class and cls_score is not None:
-            # Only use the cls_score
-            labels = labels[:, 1:]
-            pos_inds = torch.sum(labels, dim=-1) > 0
-            cls_score = cls_score[pos_inds, 1:]
-            labels = labels[pos_inds]
-
-            bce_loss = F.binary_cross_entropy_with_logits
-
-            loss = bce_loss(cls_score, labels, reduction='none')
-            pt = torch.exp(-loss)
-            F_loss = self.focal_alpha * (1 - pt)**self.focal_gamma * loss
-            losses['loss_action_cls'] = torch.mean(F_loss)
-
-            recall_thr, prec_thr, recall_k, prec_k = self.multi_label_accuracy(
-                cls_score, labels, thr=0.5)
-            losses['recall@thr=0.5'] = recall_thr
-            losses['prec@thr=0.5'] = prec_thr
-            for i, k in enumerate(self.topk):
-                losses[f'recall@top{k}'] = recall_k[i]
-                losses[f'prec@top{k}'] = prec_k[i]
-        
-        return losses
+            if self.spatial_type == 'avg':
+                # use `nn.AdaptiveAvgPool3d` to adaptively match the in_channels.
+                self.avg_pool = nn.AdaptiveAvgPool3d((1, 1, 1))
+            else:
+                self.avg_pool = None
 
     def init_weights(self):
         """Initiate the parameters from scratch."""
-        normal_init(self.fc_cls, std=self.init_std)
+        if not self.transformer:
+            normal_init(self.fc_cls, std=self.init_std)
+        else:
+            normal_init(self.fc_cls, std=self.init_std)
+            normal_init(self.base_cls, std=self.init_std)
 
     def forward(self, x):
         """Defines the computation performed at every call.
@@ -171,14 +107,48 @@ class I3DHead(BaseHead):
             torch.Tensor: The classification scores for input samples.
         """
         # [N, in_channels, 4, 7, 7]
-        if self.avg_pool is not None:
-            x = self.avg_pool(x)
-        # [N, in_channels, 1, 1, 1]
-        if self.dropout is not None:
-            x = self.dropout(x)
-        # [N, in_channels, 1, 1, 1]
-        x = x.view(x.shape[0], -1)
-        # [N, in_channels]
-        cls_score = self.fc_cls(x)
-        # [N, num_classes]
+        if not self.transformer:
+            
+            if self.avg_pool is not None:
+                x = self.avg_pool(x)
+            # [N, in_channels, 1, 1, 1]
+            if self.dropout is not None:
+                x = self.dropout(x)
+            # [N, in_channels, 1, 1, 1]
+            x = x.view(x.shape[0], -1)
+
+            # [N, in_channels]
+            cls_score = self.fc_cls(x)
+            # [N, num_classes]
+        
+        else:
+            if self.transform is not None:
+                x = self.transform(x)
+            if self.dropout is not None:
+                x = self.dropout(x)
+            F_s = self.temporal_pool(x)
+            F_t = self.spatial_pool(x)
+            F_s = F_s.view(F_s.size(0), F_s.size(1), -1)
+            F_t = F_t.view(F_t.size(0), F_t.size(1), -1)
+            x = self.global_max_pool(x)
+            x = x.view(x.size(0), -1)
+            b, _ = x.shape
+            score_1 = self.base_cls(x)
+            label_embedding = x.repeat(1, self.num_classes)
+            label_embedding = label_embedding.view(b, self.num_classes, -1)
+            label_embedding = label_embedding * self.base_cls.weight
+
+            pos_s = self.pos_enc_module(F_s.permute(0,2,1))
+            pos_s = pos_s.permute(0,2,1)
+            pos_t = self.pos_enc_module(F_t.permute(0,2,1))
+            pos_t = pos_t.permute(0,2,1)
+
+            hs = self.transformer_s(F_s, label_embedding, pos_s)[0]
+            ht = self.transformer_t(F_t, label_embedding, pos_t)[0]
+            h = torch.cat([hs, ht], dim=3)
+            score_2 = self.fc_cls(h[-1])
+            mask_mat = self.mask_mat.detach()
+            score_2 = (score_2 * mask_mat).sum(-1)
+
+            cls_score = (score_1 + score_2) / 2
         return cls_score

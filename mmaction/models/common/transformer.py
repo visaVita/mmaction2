@@ -289,13 +289,11 @@ class Transformer(nn.Module):
         self.decoder = TransformerDecoder(decoder_layer, num_decoder_layers, decoder_norm,
                                           return_intermediate=return_intermediate_dec)
 
-        self._reset_parameters()
-
         self.d_model = d_model
         self.nhead = nhead
         self.rm_self_attn_dec = rm_self_attn_dec
         self.rm_first_self_attn = rm_first_self_attn
-
+        self._reset_parameters()
         if self.rm_self_attn_dec or self.rm_first_self_attn:
             self.rm_self_attn_dec_func()
 
@@ -347,7 +345,8 @@ class Transformer(nn.Module):
         bs, c, n_cls = src.shape
         src = src.permute(2, 0, 1)
         pos_embed = pos_embed.permute(2, 0, 1)
-        query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
+        query_embed = query_embed.transpose(0, 1)
+        #query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
         if mask is not None:
             mask = mask.flatten(1)
 
@@ -357,10 +356,10 @@ class Transformer(nn.Module):
             memory = src
 
         tgt = torch.zeros_like(query_embed)
-        hs = self.decoder(tgt, memory, memory_key_padding_mask=mask,
+        hs, sim_mat_2 = self.decoder(tgt, memory, memory_key_padding_mask=mask,
                           pos=pos_embed, query_pos=query_embed)
         
-        return hs.transpose(1, 2), memory[:n_cls].permute(1, 2, 0).view(bs, c, n_cls)
+        return hs.transpose(1, 2), memory[:n_cls].permute(1, 2, 0).view(bs, c, n_cls), sim_mat_2
 
 
 class TransformerEncoder(nn.Module):
@@ -408,7 +407,7 @@ class TransformerDecoder(nn.Module):
         intermediate = []
 
         for layer in self.layers:
-            output = layer(output, memory, tgt_mask=tgt_mask,
+            output, _ , sim_mat_2 = layer(output, memory, tgt_mask=tgt_mask,
                            memory_mask=memory_mask,
                            tgt_key_padding_mask=tgt_key_padding_mask,
                            memory_key_padding_mask=memory_key_padding_mask,
@@ -425,7 +424,7 @@ class TransformerDecoder(nn.Module):
         if self.return_intermediate:
             return torch.stack(intermediate)
 
-        return output.unsqueeze(0)
+        return output.unsqueeze(0), sim_mat_2
 
 
 class TransformerEncoderLayer(nn.Module):
@@ -550,7 +549,10 @@ class TransformerDecoderLayer(nn.Module):
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
         tgt = tgt + self.dropout3(tgt2)
         tgt = self.norm3(tgt)
-        return tgt
+        if not self.omit_selfattn:
+            return tgt, sim_mat_1, sim_mat_2
+        else:
+            return tgt, sim_mat_2
 
     def forward_pre(self, tgt, memory,
                     tgt_mask: Optional[Tensor] = None,

@@ -10,6 +10,7 @@ from .builder import (BLENDINGS, DATASETS, PIPELINES, build_dataloader,
                       build_dataset)
 from .dataset_wrappers import ConcatDataset, RepeatDataset
 from .charades_dataset import CharadesDataset
+from .multithumos_dataset import MultiThumosDataset
 from .hvu_dataset import HVUDataset
 from .image_dataset import ImageDataset
 from .pose_dataset import PoseDataset
@@ -24,5 +25,5 @@ __all__ = [
     'HVUDataset', 'AudioDataset', 'AudioFeatureDataset', 'ImageDataset',
     'RawVideoDataset', 'AVADataset', 'AudioVisualDataset',
     'BaseMiniBatchBlending', 'CutmixBlending', 'MixupBlending', 'LabelSmoothing', 'DATASETS',
-    'PIPELINES', 'BLENDINGS', 'PoseDataset', 'ConcatDataset', 'CharadesDataset'
+    'PIPELINES', 'BLENDINGS', 'PoseDataset', 'ConcatDataset', 'CharadesDataset', 'MultiThumosDataset'
 ]

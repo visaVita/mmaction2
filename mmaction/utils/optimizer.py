@@ -20,6 +20,7 @@ class DistOptimizerHook(OptimizerHook):
         runner.optimizer.zero_grad()
 
     def after_train_iter(self, runner):
+        
         runner.outputs['loss'] /= self.update_interval
         if self.use_fp16:
             with apex.amp.scale_loss(runner.outputs['loss'], runner.optimizer) as scaled_loss:

@@ -16,11 +16,12 @@ from .timesformer import TimeSformer
 from .x3d import X3D
 from .swin_transformer import SwinTransformer3D
 from .CoT import SlowFast_CoT
+from .movinet import MoViNet
 
 
 __all__ = [
     'C3D', 'ResNet', 'ResNet3d', 'ResNet3d_CoT', 'ResNetTSM', 'ResNet2Plus1d',
     'ResNet3dSlowFast', 'ResNet3dSlowOnly', 'ResNet3dCSN', 'ResNetTIN', 'X3D',
     'ResNetAudio', 'ResNet3dLayer', 'ResNet3dLayer_CoT', 'MobileNetV2TSM', 'MobileNetV2', 'TANet',
-    'TimeSformer', 'SlowFast_CoT', 'SwinTransformer3D'
+    'TimeSformer', 'SlowFast_CoT', 'SwinTransformer3D', 'MoViNet'
 ]

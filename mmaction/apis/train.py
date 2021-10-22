@@ -48,6 +48,7 @@ def train_model(model,
     dataset = dataset if isinstance(dataset, (list, tuple)) else [dataset]
     if 'optimizer_config' not in cfg:
         cfg.optimizer_config={}
+    
     dataloader_setting = dict(
         videos_per_gpu=cfg.data.get('videos_per_gpu', 1) // cfg.optimizer_config.get('update_interval', 1),
         workers_per_gpu=cfg.data.get('workers_per_gpu', 1),
@@ -109,8 +110,8 @@ def train_model(model,
             broadcast_buffers=False,
             find_unused_parameters=find_unused_parameters)
     else:
-        model = MMDataParallel(
-            model.cuda(cfg.gpu_ids[0]), device_ids=cfg.gpu_ids)
+        model = MMDataParallel(model.cuda(cfg.gpu_ids[0]), device_ids=cfg.gpu_ids)
+        # model = MMDataParallel(model, device_ids=[1,3]).cuda(1)
 
     if use_amp:
         Runner = EpochBasedRunnerAmp
@@ -185,7 +186,10 @@ def train_model(model,
         runner.register_hook(eval_hook)
 
     if cfg.resume_from:
-        runner.resume(cfg.resume_from, resume_amp=use_amp)
+        if use_amp:
+            runner.resume(cfg.resume_from, resume_amp=use_amp)
+        else:
+            runner.resume(cfg.resume_from)
     elif cfg.get("auto_resume", False) and osp.exists(osp.join(runner.work_dir, 'latest.pth')):
         runner.auto_resume()
     elif cfg.load_from:

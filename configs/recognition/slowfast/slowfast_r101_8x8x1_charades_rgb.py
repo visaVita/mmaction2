@@ -8,7 +8,7 @@ model = dict(
         channel_ratio=8,  # beta_inv
         slow_pathway=dict(
             type='resnet3d',
-            depth=50,
+            depth=101,
             pretrained=None,
             lateral=True,
             fusion_kernel=7,
@@ -17,23 +17,17 @@ model = dict(
             conv1_stride_t=1,
             pool1_stride_t=1,
             inflate=(0, 0, 1, 1),
-            norm_eval=False,
-            CoT=(0, 0, 0, 0),
-            frozen_stages=-1
-            ),
+            norm_eval=False),
         fast_pathway=dict(
             type='resnet3d',
-            depth=50,
+            depth=101,
             pretrained=None,
             lateral=False,
             base_channels=8,
             conv1_kernel=(5, 7, 7),
             conv1_stride_t=1,
             pool1_stride_t=1,
-            norm_eval=False,
-            CoT=(0, 0, 0, 0),
-            frozen_stages=-1
-            )),
+            norm_eval=False)),
     cls_head=dict(
         type='SlowFastHead',
         in_channels=2304,  # 2048+256
@@ -45,11 +39,9 @@ model = dict(
         # loss_cls=dict(type='BCELossWithLogits'),
         dropout_ratio=0.5,
         label_smooth_eps=0.1
-    ),
-    # model training and testing settings
-    train_cfg=None,
-    test_cfg=dict(maximize_clips='score'))
-    
+    ))
+train_cfg = None
+test_cfg = dict(maximize_clips='score')
 dataset_type = 'CharadesDataset'
 data_root = 'data/charades/Charades_rgb'
 data_root_val = 'data/charades/Charades_rgb'
@@ -108,14 +100,6 @@ test_pipeline = [
 data = dict(
     videos_per_gpu=8,
     workers_per_gpu=4,
-    val_dataloader=dict(
-        videos_per_gpu=1,
-        workers_per_gpu=1
-    ),
-    test_dataloader=dict(
-        videos_per_gpu=1,
-        workers_per_gpu=2
-    ),
     train=dict(
         type=dataset_type,
         ann_file=ann_file_train,
@@ -125,89 +109,38 @@ data = dict(
         type=dataset_type,
         ann_file=ann_file_val,
         data_prefix=data_root_val,
-        pipeline=val_pipeline,
-        test_mode=True),
+        pipeline=val_pipeline),
     test=dict(
         type=dataset_type,
         ann_file=ann_file_test,
         data_prefix=data_root_val,
-        pipeline=test_pipeline,
-        test_mode=True))
-
-evaluation = dict(
-    interval=1, metrics=['mean_average_precision'])
-
+        pipeline=test_pipeline))
 # optimizer
-""" optimizer = dict(
-    type='SGD',
-    lr=0.01875,
-    momentum=0.9,
-    weight_decay=0.0001,
-    constructor='transformer_mlc_optimizer_constructor',
-    paramwise_cfg = dict(lrp=0.1),
-    # paramwise_cfg = dict(paramwise_cfg = dict(custom_keys={
-    #                 'backbone': dict(lr_mult=1., decay_mult=1.),
-    #                 'cls_head': dict(lr_mult=0.1, decay_mult=10.),
-    #                 }),)
-) """
-optimizer = dict(type='AdamW',
-                 lr=4e-5,
-                 betas=(0.9, 0.9999),
-                 weight_decay=2e-2,
-                 paramwise_cfg = dict(custom_keys={'backbone': dict(lr_mult=0.1),
-                                                   'bn': dict(decay_mult=0.)})
-)
-
-optimizer_config = dict(
-    grad_clip=dict(
-        max_norm=40,
-        norm_type=2)
-)
+optimizer = dict(
+    type='SGD', lr=0.1, momentum=0.9,
+    weight_decay=0.0001)  # this lr is used for 8 gpus
+optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
-""" lr_config = dict(
-    policy='step',
-    step=[30],
-    warmup='linear',
-    warmup_by_epoch=True,
-    warmup_iters=2
-) """
-
-""" lr_config = dict(
+lr_config = dict(
     policy='CosineAnnealing',
     min_lr=0,
     warmup='linear',
     warmup_by_epoch=True,
-    warmup_iters=4) """
-
-lr_config = dict(
-    policy='CosineRestart',
-    periods=[20, 40, 60],
-    restart_weights=[1, 1, 1],
-    min_lr = 0,
-    warmup='linear',
-    warmup_by_epoch=True,
-    warmup_iters=4
-)
-
-total_epochs = 80
-
-# runtime settings
-checkpoint_config = dict(interval=5)
+    warmup_iters=34)
+total_epochs = 256
+checkpoint_config = dict(interval=4)
 workflow = [('train', 1)]
+evaluation = dict(
+    interval=5, metrics=['top_k_accuracy', 'mean_class_accuracy'])
 log_config = dict(
     interval=20,
     hooks=[
         dict(type='TextLoggerHook'),
-        # dict(type='TensorboardLoggerHook'),
+        #    dict(type='TensorboardLoggerHook'),
     ])
-log_level = 'INFO'
-work_dir = './work_dirs/slowfast_cot_r50_8x8x1_90e_charades_rgb'
-
-load_from = ('https://download.openmmlab.com/mmaction/recognition/'
-                 'slowfast/slowfast_r50_8x8x1_256e_kinetics400_rgb/'
-                 'slowfast_r50_8x8x1_256e_kinetics400_rgb_20200716-73547d2b.pth')
-# load_from = ('/home/ckai/project/mmaction2/work_dirs/slowfast_cot_r50_8x8x1_57e_charades_rgb/map3642_lr_1875_asl_4_1_58e.pth')
-# load_from = None
-find_unused_parameters = True
-resume_from = None
 dist_params = dict(backend='nccl')
+log_level = 'INFO'
+work_dir = './work_dirs/slowfast_r101_8x8x1_charades_rgb'
+load_from = 'https://download.openmmlab.com/mmaction/recognition/slowfast/slowfast_r101_8x8x1_256e_kinetics400_rgb/slowfast_r101_8x8x1_256e_kinetics400_rgb_20210218-0dd54025.pth'
+resume_from = None
+find_unused_parameters = False
