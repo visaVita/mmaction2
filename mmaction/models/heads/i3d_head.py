@@ -50,7 +50,7 @@ class I3DHead(BaseHead):
                                             num_encoder_layers=0,
                                             num_decoder_layers=2,
                                             dim_feedforward=hidden_dim*2,
-                                            dropout=0.2,
+                                            dropout=0.1,
                                             rm_first_self_attn=False,
                                             rm_self_attn_dec=False
             )
@@ -59,7 +59,7 @@ class I3DHead(BaseHead):
                                             num_encoder_layers=0,
                                             num_decoder_layers=2,
                                             dim_feedforward=hidden_dim*2,
-                                            dropout=0.2,
+                                            dropout=0.1,
                                             rm_first_self_attn=False,
                                             rm_self_attn_dec=False
             )
@@ -150,5 +150,5 @@ class I3DHead(BaseHead):
             mask_mat = self.mask_mat.detach()
             score_2 = (score_2 * mask_mat).sum(-1)
 
-            cls_score = (score_1 + score_2) / 2
+            cls_score = (score_1 + score_2) / 2.
         return cls_score

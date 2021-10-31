@@ -20,8 +20,8 @@ model = dict(
         dropout_ratio=0.5,
         init_std=0.01,
         multi_class=True,
-        transformer=True,
-        loss_cls=dict(type='AsymmetricLossOptimized', gamma_neg=4, gamma_pos=1, disable_torch_grad_focal_loss=True),
+        transformer=False,
+        loss_cls=dict(type='AsymmetricLossOptimized', gamma_neg=1, gamma_pos=0, disable_torch_grad_focal_loss=True),
         label_smooth_eps=0.1
     ),
     # model training and testing settings
@@ -107,29 +107,31 @@ data = dict(
 evaluation = dict(
     interval=1, metrics=['mean_average_precision'])
 
+log_config = dict(
+    interval=20,
+    hooks=[
+        dict(type='TextLoggerHook'),
+        #dict(type='TensorboardLoggerHook'),
+    ])
+
 # optimizer = dict(type='AdamW',
-#                  lr=1e-4,
+#                  lr=2e-5,
 #                  betas=(0.9, 0.9999),
-#                  weight_decay=2e-2,
-#                  constructor='freeze_backbone_constructor',
+#                  weight_decay=1e-2,
+#                  constructor='freeze_bn_constructor',
 #                  paramwise_cfg = dict(lrp=0.1))
 
 optimizer = dict(
     type='SGD',
-    lr=0.00125,  # this lr is used for 8 gpus
+    lr=0.00025,  # this lr is used for 8 gpus
     momentum=0.9,
     weight_decay=0.0001,
-    constructor='freeze_backbone_constructor',
+    constructor='freeze_bn_constructor',
     paramwise_cfg = dict(lrp=0.1))
-lr_config = dict(policy='step',
-                 step=[20, 40],
-                 warmup='linear',
-                 warmup_by_epoch=True,
-                 warmup_iters=4)
-
+lr_config = dict(policy='step', step=[15, 20])
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
-# lr_config = dict(policy='step', step=[20, 35])
+# lr_config = dict(policy='step', step=[15, 25])
 
 # lr_config = dict(
 #     policy='CosineRestart',
@@ -149,23 +151,15 @@ optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 #     warmup_iters=2
 # )
 
-total_epochs = 50
-
-
-log_config = dict(
-    interval=20,
-    hooks=[
-        dict(type='TextLoggerHook'),
-        #dict(type='TensorboardLoggerHook'),
-    ])
+total_epochs = 20
 
 # runtime settings
-checkpoint_config = dict(interval=5)
+checkpoint_config = dict(interval=1)
 # load_from = 'https://download.openmmlab.com/mmaction/recognition/i3d/i3d_r50_256p_32x2x1_100e_kinetics400_rgb/i3d_r50_256p_32x2x1_100e_kinetics400_rgb_20200801-7d9f44de.pth'
 load_from = '/home/ckai/project/mmaction2/work_dirs/i3d_r50_32x2x1_freeze_80e_charades_rgb/map3280.pth'
 resume_from = None
-work_dir = './work_dirs/i3d_r50_32x2x1_freeze_80e_charades_rgb/'
-find_unused_parameters = True
+work_dir = './work_dirs/i3d_r50_32x2x1_freeze_bn_50e_charades_rgb/'
+find_unused_parameters = False
 
 dist_params = dict(backend='nccl')
 log_level = 'INFO'

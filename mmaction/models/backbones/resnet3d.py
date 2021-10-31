@@ -965,6 +965,7 @@ class ResNet3d(nn.Module):
         for i, layer_name in enumerate(self.res_layers):
             res_layer = getattr(self, layer_name)
             x = res_layer(x)
+            # print(x.shape)
             if i == 0 and self.with_pool2:
                 x = self.pool2(x)
             if i in self.out_indices:
