@@ -1,3 +1,4 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -97,7 +98,7 @@ class SingleRoIExtractor3D(nn.Module):
             maxT = max([x.shape[2] for x in feat])
             max_shape = (maxT, ) + feat[0].shape[3:]
             # resize each feat to the largest shape (w. nearest)
-            feat = [F.interpolate(x, max_shape, recompute_scale_factor=False).contiguous() for x in feat]
+            feat = [F.interpolate(x, max_shape).contiguous() for x in feat]
 
         if self.with_temporal_pool:
             if self.temporal_pool_mode == 'avg':

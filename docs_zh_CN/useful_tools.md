@@ -4,14 +4,16 @@
 
 <!-- TOC -->
 
+- [目录](#目录)
 - [日志分析](#日志分析)
 - [模型复杂度分析](#模型复杂度分析)
 - [模型转换](#模型转换)
-  - [导出 MMAction2 模型为 ONNX 格式（实验特性）](#导出-MMAction2-模型为-ONNX-格式（实验特性）)
+  - [导出 MMAction2 模型为 ONNX 格式（实验特性）](#导出-mmaction2-模型为-onnx-格式实验特性)
   - [发布模型](#发布模型)
 - [其他脚本](#其他脚本)
   - [指标评价](#指标评价)
   - [打印完整配置](#打印完整配置)
+  - [检查视频](#检查视频)
 
 <!-- TOC -->
 
@@ -19,7 +21,7 @@
 
 输入变量指定一个训练日志文件，可通过 `tools/analysis/analyze_logs.py` 脚本绘制 loss/top-k 曲线。本功能依赖于 `seaborn`，使用前请先通过 `pip install seaborn` 安装依赖包。
 
-![准确度曲线图](/resources/acc_curve.png)
+![准确度曲线图](https://github.com/open-mmlab/mmaction2/raw/master/resources/acc_curve.png)
 
 ```shell
 python tools/analysis/analyze_logs.py plot_curve ${JSON_LOGS} [--keys ${KEYS}] [--title ${TITLE}] [--legend ${LEGEND}] [--backend ${BACKEND}] [--style ${STYLE}] [--out ${OUT_FILE}]

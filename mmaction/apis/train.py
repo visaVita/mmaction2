@@ -1,3 +1,4 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import copy as cp
 import os.path as osp
 
@@ -12,9 +13,6 @@ from ..core import (DistEvalHook, EvalHook, OmniSourceDistSamplerSeedHook,
 from ..datasets import build_dataloader, build_dataset
 from ..utils import PreciseBNHook, get_root_logger
 from .test import multi_gpu_test
-from mmcv_custom.runner import EpochBasedRunnerAmp
-import apex
-import os.path as osp
 
 
 def train_model(model,
@@ -46,12 +44,11 @@ def train_model(model,
 
     # prepare data loaders
     dataset = dataset if isinstance(dataset, (list, tuple)) else [dataset]
-    if 'optimizer_config' not in cfg:
-        cfg.optimizer_config={}
-    
+
     dataloader_setting = dict(
-        videos_per_gpu=cfg.data.get('videos_per_gpu', 1) // cfg.optimizer_config.get('update_interval', 1),
+        videos_per_gpu=cfg.data.get('videos_per_gpu', 1),
         workers_per_gpu=cfg.data.get('workers_per_gpu', 1),
+        persistent_workers=cfg.data.get('persistent_workers', False),
         num_gpus=len(cfg.gpu_ids),
         dist=distributed,
         seed=cfg.seed)
@@ -80,25 +77,6 @@ def train_model(model,
             build_dataloader(ds, **dataloader_setting) for ds in dataset
         ]
 
-    # build runner
-    optimizer = build_optimizer(model, cfg.optimizer)
-    # use apex fp16 optimizer
-    # Noticed that this is just a temporary patch. We shoud not encourage this kind of code style
-    use_amp = False
-    if (
-        cfg.optimizer_config.get("type", None)
-        and cfg.optimizer_config["type"] == "DistOptimizerHook"
-    ):
-        if cfg.optimizer_config.get("use_fp16", False):
-            model, optimizer = apex.amp.initialize(
-                model.cuda(), optimizer, opt_level="O1"
-            )
-            for m in model.modules():
-                if hasattr(m, "fp16_enabled"):
-                    m.fp16_enabled = True
-            use_amp = True
-
-
     # put model on gpus
     if distributed:
         find_unused_parameters = cfg.get('find_unused_parameters', False)
@@ -110,26 +88,19 @@ def train_model(model,
             broadcast_buffers=False,
             find_unused_parameters=find_unused_parameters)
     else:
-        model = MMDataParallel(model.cuda(cfg.gpu_ids[0]), device_ids=cfg.gpu_ids)
-        # model = MMDataParallel(model, device_ids=[1,3]).cuda(1)
+        model = MMDataParallel(
+            model.cuda(cfg.gpu_ids[0]), device_ids=cfg.gpu_ids)
 
-    if use_amp:
-        Runner = EpochBasedRunnerAmp
-        runner = Runner(
-            model,
-            optimizer=optimizer,
-            work_dir=cfg.work_dir,
-            logger=logger,
-            meta=meta,
-            amp=use_amp)
-    else:
-        Runner = OmniSourceRunner if cfg.omnisource else EpochBasedRunner
-        runner = Runner(
-            model,
-            optimizer=optimizer,
-            work_dir=cfg.work_dir,
-            logger=logger,
-            meta=meta)
+    # build runner
+    optimizer = build_optimizer(model, cfg.optimizer)
+
+    Runner = OmniSourceRunner if cfg.omnisource else EpochBasedRunner
+    runner = Runner(
+        model,
+        optimizer=optimizer,
+        work_dir=cfg.work_dir,
+        logger=logger,
+        meta=meta)
     # an ugly workaround to make .log and .log.json filenames the same
     runner.timestamp = timestamp
 
@@ -159,6 +130,7 @@ def train_model(model,
         dataloader_setting = dict(
             videos_per_gpu=cfg.data.get('videos_per_gpu', 1),
             workers_per_gpu=1,  # save memory and time
+            persistent_workers=cfg.data.get('persistent_workers', False),
             num_gpus=len(cfg.gpu_ids),
             dist=distributed,
             seed=cfg.seed)
@@ -174,6 +146,7 @@ def train_model(model,
         dataloader_setting = dict(
             videos_per_gpu=cfg.data.get('videos_per_gpu', 1),
             workers_per_gpu=cfg.data.get('workers_per_gpu', 1),
+            persistent_workers=cfg.data.get('persistent_workers', False),
             # cfg.gpus will be ignored if distributed
             num_gpus=len(cfg.gpu_ids),
             dist=distributed,
@@ -186,12 +159,7 @@ def train_model(model,
         runner.register_hook(eval_hook)
 
     if cfg.resume_from:
-        if use_amp:
-            runner.resume(cfg.resume_from, resume_amp=use_amp)
-        else:
-            runner.resume(cfg.resume_from)
-    elif cfg.get("auto_resume", False) and osp.exists(osp.join(runner.work_dir, 'latest.pth')):
-        runner.auto_resume()
+        runner.resume(cfg.resume_from)
     elif cfg.load_from:
         runner.load_checkpoint(cfg.load_from)
     runner_kwargs = dict()
@@ -225,6 +193,7 @@ def train_model(model,
         dataloader_setting = dict(
             videos_per_gpu=cfg.data.get('videos_per_gpu', 1),
             workers_per_gpu=cfg.data.get('workers_per_gpu', 1),
+            persistent_workers=cfg.data.get('persistent_workers', False),
             num_gpus=len(cfg.gpu_ids),
             dist=distributed,
             shuffle=False)

@@ -1,3 +1,4 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import warnings
 from abc import ABCMeta, abstractmethod
 from collections import OrderedDict
@@ -153,11 +154,15 @@ class BaseRecognizer(nn.Module, metaclass=ABCMeta):
             x = self.backbone.features(imgs)
         elif self.backbone_from == 'timm':
             x = self.backbone.forward_features(imgs)
+        elif self.backbone_from == 'mmcls':
+            x = self.backbone(imgs)
+            if isinstance(x, tuple):
+                assert len(x) == 1
+                x = x[0]
         else:
             x = self.backbone(imgs)
         return x
-    
-    '''
+
     def average_clip(self, cls_score, num_segs=1):
         """Averaging class score over multiple clips.
 
@@ -193,7 +198,6 @@ class BaseRecognizer(nn.Module, metaclass=ABCMeta):
             cls_score = cls_score.mean(dim=1)
 
         return cls_score
-    '''
 
     def aggregate_clip(self, cls_score, num_segs=1):
         if ('average_clips' not in self.test_cfg) and ('maximize_clips'

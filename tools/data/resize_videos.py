@@ -1,3 +1,4 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import argparse
 import glob
 import os
@@ -31,7 +32,7 @@ def resize_videos(vid_item):
     result = os.popen(
         f'ffprobe -hide_banner -loglevel error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 {full_path}'  # noqa:E501
     )
-    w, h = [int(float(d)) for d in result.readline().rstrip().split(',')]
+    w, h = [int(d) for d in result.readline().rstrip().split(',')]
     if w > h:
         cmd = (f'ffmpeg -hide_banner -loglevel error -i {full_path} '
                f'-vf {"mpdecimate," if args.remove_dup else ""}'

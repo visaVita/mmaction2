@@ -1,3 +1,5 @@
+# Copyright (c) OpenMMLab. All rights reserved.
+import copy as cp
 import io
 import os
 import os.path as osp
@@ -12,7 +14,6 @@ from torch.nn.modules.utils import _pair
 
 from ...utils import get_random_string, get_shm_dir, get_thread_id
 from ..builder import PIPELINES
-import random
 
 
 @PIPELINES.register_module()
@@ -57,6 +58,9 @@ class LoadHVULabel:
         category_mask = torch.zeros(self.num_categories)
 
         for category, tags in results['label'].items():
+            # skip if not training on this category
+            if category not in self.categories:
+                continue
             category_mask[self.categories.index(category)] = 1.
             start_idx = self.category2startidx[category]
             category_num = self.category2num[category]
@@ -113,7 +117,6 @@ class SampleFrames:
                  out_of_bound_opt='loop',
                  test_mode=False,
                  start_index=None,
-                 frame_uniform=False,
                  keep_tail_frames=False):
 
         self.clip_len = clip_len
@@ -124,7 +127,6 @@ class SampleFrames:
         self.out_of_bound_opt = out_of_bound_opt
         self.test_mode = test_mode
         self.keep_tail_frames = keep_tail_frames
-        self.frame_uniform = frame_uniform
         assert self.out_of_bound_opt in ['loop', 'repeat_last']
 
         if start_index is not None:
@@ -201,27 +203,6 @@ class SampleFrames:
             clip_offsets = np.zeros((self.num_clips, ), dtype=np.int)
         return clip_offsets
 
-    def get_seq_frames(self, num_frames):
-        """
-        Modified from https://github.com/facebookresearch/SlowFast/blob/64abcc90ccfdcbb11cf91d6e525bed60e92a8796/slowfast/datasets/ssv2.py#L159
-        Given the video index, return the list of sampled frame indexes.
-        Args:
-            num_frames (int): Total number of frame in the video.
-        Returns:
-            seq (list): the indexes of frames of sampled from the video.
-        """
-        seg_size = float(num_frames - 1) / self.clip_len
-        seq = []
-        for i in range(self.clip_len):
-            start = int(np.round(seg_size * i))
-            end = int(np.round(seg_size * (i + 1)))
-            if not self.test_mode:
-                seq.append(random.randint(start, end))
-            else:
-                seq.append((start + end) // 2)
-
-        return np.array(seq)
-
     def _sample_clips(self, num_frames):
         """Choose clip offsets for the video in a given mode.
 
@@ -246,34 +227,31 @@ class SampleFrames:
                 to the next transform in pipeline.
         """
         total_frames = results['total_frames']
-        if self.frame_uniform:  # sthv2 sampling strategy
-            assert results['start_index'] == 0
-            frame_inds = self.get_seq_frames(total_frames)
+
+        clip_offsets = self._sample_clips(total_frames)
+        frame_inds = clip_offsets[:, None] + np.arange(
+            self.clip_len)[None, :] * self.frame_interval
+        frame_inds = np.concatenate(frame_inds)
+
+        if self.temporal_jitter:
+            perframe_offsets = np.random.randint(
+                self.frame_interval, size=len(frame_inds))
+            frame_inds += perframe_offsets
+
+        frame_inds = frame_inds.reshape((-1, self.clip_len))
+        if self.out_of_bound_opt == 'loop':
+            frame_inds = np.mod(frame_inds, total_frames)
+        elif self.out_of_bound_opt == 'repeat_last':
+            safe_inds = frame_inds < total_frames
+            unsafe_inds = 1 - safe_inds
+            last_ind = np.max(safe_inds * frame_inds, axis=1)
+            new_inds = (safe_inds * frame_inds + (unsafe_inds.T * last_ind).T)
+            frame_inds = new_inds
         else:
-            clip_offsets = self._sample_clips(total_frames)
-            frame_inds = clip_offsets[:, None] + np.arange(
-                self.clip_len)[None, :] * self.frame_interval
-            frame_inds = np.concatenate(frame_inds)
+            raise ValueError('Illegal out_of_bound option.')
 
-            if self.temporal_jitter:
-                perframe_offsets = np.random.randint(
-                    self.frame_interval, size=len(frame_inds))
-                frame_inds += perframe_offsets
-
-            frame_inds = frame_inds.reshape((-1, self.clip_len))
-            if self.out_of_bound_opt == 'loop':
-                frame_inds = np.mod(frame_inds, total_frames)
-            elif self.out_of_bound_opt == 'repeat_last':
-                safe_inds = frame_inds < total_frames
-                unsafe_inds = 1 - safe_inds
-                last_ind = np.max(safe_inds * frame_inds, axis=1)
-                new_inds = (safe_inds * frame_inds + (unsafe_inds.T * last_ind).T)
-                frame_inds = new_inds
-            else:
-                raise ValueError('Illegal out_of_bound option.')
-
-            start_index = results['start_index']
-            frame_inds = np.concatenate(frame_inds) + start_index
+        start_index = results['start_index']
+        frame_inds = np.concatenate(frame_inds) + start_index
         results['frame_inds'] = frame_inds.astype(np.int)
         results['clip_len'] = self.clip_len
         results['frame_interval'] = self.frame_interval
@@ -1342,7 +1320,19 @@ class RawFrameDecode:
 
         offset = results.get('offset', 0)
 
-        for frame_idx in results['frame_inds']:
+        cache = {}
+        for i, frame_idx in enumerate(results['frame_inds']):
+            # Avoid loading duplicated frames
+            if frame_idx in cache:
+                if modality == 'RGB':
+                    imgs.append(cp.deepcopy(imgs[cache[frame_idx]]))
+                else:
+                    imgs.append(cp.deepcopy(imgs[2 * cache[frame_idx]]))
+                    imgs.append(cp.deepcopy(imgs[2 * cache[frame_idx] + 1]))
+                continue
+            else:
+                cache[frame_idx] = i
+
             frame_idx += offset
             if modality == 'RGB':
                 filepath = osp.join(directory, filename_tmpl.format(frame_idx))
@@ -1386,6 +1376,53 @@ class RawFrameDecode:
                     f'io_backend={self.io_backend}, '
                     f'decoding_backend={self.decoding_backend})')
         return repr_str
+
+
+@PIPELINES.register_module()
+class ArrayDecode:
+    """Load and decode frames with given indices from a 4D array.
+
+    Required keys are "array and "frame_inds", added or modified keys are
+    "imgs", "img_shape" and "original_shape".
+    """
+
+    def __call__(self, results):
+        """Perform the ``RawFrameDecode`` to pick frames given indices.
+
+        Args:
+            results (dict): The resulting dict to be modified and passed
+                to the next transform in pipeline.
+        """
+
+        modality = results['modality']
+        array = results['array']
+
+        imgs = list()
+
+        if results['frame_inds'].ndim != 1:
+            results['frame_inds'] = np.squeeze(results['frame_inds'])
+
+        offset = results.get('offset', 0)
+
+        for i, frame_idx in enumerate(results['frame_inds']):
+
+            frame_idx += offset
+            if modality == 'RGB':
+                imgs.append(array[frame_idx])
+            elif modality == 'Flow':
+                imgs.extend(
+                    [array[frame_idx, ..., 0], array[frame_idx, ..., 1]])
+            else:
+                raise NotImplementedError
+
+        results['imgs'] = imgs
+        results['original_shape'] = imgs[0].shape[:2]
+        results['img_shape'] = imgs[0].shape[:2]
+
+        return results
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}()'
 
 
 @PIPELINES.register_module()
@@ -1643,7 +1680,7 @@ class AudioFeatureSelector:
 
     Args:
         fixed_length (int): As the features selected by frames sampled may
-            not be extactly the same, `fixed_length` will truncate or pad them
+            not be exactly the same, `fixed_length` will truncate or pad them
             into the same size. Default: 128.
     """
 

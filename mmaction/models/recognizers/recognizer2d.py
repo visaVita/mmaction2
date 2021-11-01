@@ -1,3 +1,4 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import torch
 from torch import nn
 
@@ -87,7 +88,7 @@ class Recognizer2D(BaseRecognizer):
         # `num_crops` is calculated by:
         #   1) `twice_sample` in `SampleFrames`
         #   2) `num_sample_positions` in `DenseSampleFrames`
-        #   3) `ThreeCrop/TenCrop/MultiGroupCrop` in `test_pipeline`
+        #   3) `ThreeCrop/TenCrop` in `test_pipeline`
         #   4) `num_clips` in `SampleFrames` or its subclass if `clip_len != 1`
 
         # should have cls_head if not extracting features
@@ -98,7 +99,7 @@ class Recognizer2D(BaseRecognizer):
         # cls_score = self.average_clip(cls_score,
         #                              cls_score.size()[0] // batches)
         cls_score = self.aggregate_clip(cls_score,
-                                    cls_score.size()[0] // batches)
+                                        cls_score.size()[0] // batches)
 
         return cls_score
 
@@ -129,7 +130,7 @@ class Recognizer2D(BaseRecognizer):
         # `num_crops` is calculated by:
         #   1) `twice_sample` in `SampleFrames`
         #   2) `num_sample_positions` in `DenseSampleFrames`
-        #   3) `ThreeCrop/TenCrop/MultiGroupCrop` in `test_pipeline`
+        #   3) `ThreeCrop/TenCrop` in `test_pipeline`
         #   4) `num_clips` in `SampleFrames` or its subclass if `clip_len != 1`
         cls_score = self.cls_head(x, fcn_test=True)
 

@@ -8,8 +8,9 @@
 - [Video GradCAM Demo](#video-gradcam-demo): A demo script to visualize GradCAM results using a single video.
 - [Webcam demo](#webcam-demo): A demo script to implement real-time action recognition from a web camera.
 - [Long Video demo](#long-video-demo): a demo script to predict different labels using a single long video.
-- [SpatioTempoval Action Detection Webcam Demo](#spatiotemporal-action-detection-webcam-demo): A demo script to implement real-time spatio-temporval action detection from a web camera.
+- [SpatioTemporal Action Detection Webcam Demo](#spatiotemporal-action-detection-webcam-demo): A demo script to implement real-time spatio-temporal action detection from a web camera.
 - [Skeleton-based Action Recognition Demo](#skeleton-based-action-recognition-demo): A demo script to predict the skeleton-based action recognition result using a single video.
+- [Video Structuralize Demo](#video-structuralize-demo): A demo script to predict the skeleton-based and rgb-based action recognition and spatio-temporal action detection result using a single video.
 
 ## Modify configs through script arguments
 
@@ -46,8 +47,8 @@ Optional arguments:
 
 - `--use-frames`: If specified, the demo will take rawframes as input. Otherwise, it will take a video as input.
 - `DEVICE_TYPE`: Type of device to run the demo. Allowed values are cuda device like `cuda:0` or `cpu`. If not specified, it will be set to `cuda:0`.
-- `FPS`: FPS value of the output video when using rawframes as input. If not specified, it wll be set to 30.
-- `FONT_SCALE`: Font scale of the label added in the video. If not specified, it wll be 0.5.
+- `FPS`: FPS value of the output video when using rawframes as input. If not specified, it will be set to 30.
+- `FONT_SCALE`: Font scale of the label added in the video. If not specified, it will be 0.5.
 - `FONT_COLOR`: Font color of the label added in the video. If not specified, it will be `white`.
 - `TARGET_RESOLUTION`: Resolution(desired_width, desired_height) for resizing the frames before output when using a video as input. If not specified, it will be None and the frames are resized by keeping the existing aspect ratio.
 - `RESIZE_ALGORITHM`: Resize algorithm used for resizing. If not specified, it will be set to `bicubic`.
@@ -64,7 +65,7 @@ or use checkpoint url from `configs/` to directly load corresponding checkpoint,
     # The demo.mp4 and label_map_k400.txt are both from Kinetics-400
     python demo/demo.py configs/recognition/tsn/tsn_r50_video_inference_1x1x3_100e_kinetics400_rgb.py \
         checkpoints/tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth \
-        demo/demo.mp4 demo/label_map_k400.txt
+        demo/demo.mp4 tools/data/kinetics/label_map_k400.txt
     ```
 
 2. Recognize a video file as input by using a TSN model on cuda by default, loading checkpoint from url.
@@ -73,7 +74,7 @@ or use checkpoint url from `configs/` to directly load corresponding checkpoint,
     # The demo.mp4 and label_map_k400.txt are both from Kinetics-400
     python demo/demo.py configs/recognition/tsn/tsn_r50_video_inference_1x1x3_100e_kinetics400_rgb.py \
         https://download.openmmlab.com/mmaction/recognition/tsn/tsn_r50_1x1x3_100e_kinetics400_rgb/tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth \
-        demo/demo.mp4 demo/label_map_k400.txt
+        demo/demo.mp4 tools/data/kinetics/label_map_k400.txt
     ```
 
 3. Recognize a list of rawframes as input by using a TSN model on cpu.
@@ -90,7 +91,7 @@ or use checkpoint url from `configs/` to directly load corresponding checkpoint,
     # The demo.mp4 and label_map_k400.txt are both from Kinetics-400
     python demo/demo.py configs/recognition/tsn/tsn_r50_video_inference_1x1x3_100e_kinetics400_rgb.py \
         checkpoints/tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth \
-        demo/demo.mp4 demo/label_map_k400.txt --out-filename demo/demo_out.mp4
+        demo/demo.mp4 tools/data/kinetics/label_map_k400.txt --out-filename demo/demo_out.mp4
     ```
 
 5. Recognize a list of rawframes as input by using a TSN model and then generate a gif file.
@@ -107,7 +108,7 @@ or use checkpoint url from `configs/` to directly load corresponding checkpoint,
     # The demo.mp4 and label_map_k400.txt are both from Kinetics-400
     python demo/demo.py configs/recognition/tsn/tsn_r50_video_inference_1x1x3_100e_kinetics400_rgb.py \
         checkpoints/tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth \
-        demo/demo.mp4 demo/label_map_k400.txt --target-resolution 340 256 --resize-algorithm bilinear \
+        demo/demo.mp4 tools/data/kinetics/label_map_k400.txt --target-resolution 340 256 --resize-algorithm bilinear \
         --out-filename demo/demo_out.mp4
     ```
 
@@ -117,7 +118,7 @@ or use checkpoint url from `configs/` to directly load corresponding checkpoint,
     # For --target-resolution 170 -1, original resolution (340, 256) -> target resolution (170, 128)
     python demo/demo.py configs/recognition/tsn/tsn_r50_video_inference_1x1x3_100e_kinetics400_rgb.py \
         checkpoints/tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth \
-        demo/demo.mp4 demo/label_map_k400.txt --target-resolution 170 -1 --resize-algorithm bilinear \
+        demo/demo.mp4 tools/data/kinetics/label_map_k400.txt --target-resolution 170 -1 --resize-algorithm bilinear \
         --out-filename demo/demo_out.mp4
     ```
 
@@ -127,7 +128,7 @@ or use checkpoint url from `configs/` to directly load corresponding checkpoint,
     # The demo.mp4 and label_map_k400.txt are both from Kinetics-400
     python demo/demo.py configs/recognition/tsn/tsn_r50_video_inference_1x1x3_100e_kinetics400_rgb.py \
         checkpoints/tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth \
-        demo/demo.mp4 demo/label_map_k400.txt --font-scale 1 --font-color red \
+        demo/demo.mp4 tools/data/kinetics/label_map_k400.txt --font-scale 1 --font-color red \
         --out-filename demo/demo_out.mp4
     ```
 
@@ -167,7 +168,7 @@ Optional arguments:
 - `HUMAN_DETECTION_CHECKPOINT`: The human detection checkpoint URL.
 - `HUMAN_DETECTION_SCORE_THRE`: The score threshold for human detection. Default: 0.9.
 - `ACTION_DETECTION_SCORE_THRESHOLD`: The score threshold for action detection. Default: 0.5.
-- `LABEL_MAP`: The label map used. Default: `demo/label_map_ava.txt`.
+- `LABEL_MAP`: The label map used. Default: `tools/data/ava/label_map.txt`.
 - `DEVICE`: Type of device to run the demo. Allowed values are cuda device like `cuda:0` or `cpu`.  Default: `cuda:0`.
 - `OUTPUT_FILENAME`: Path to the output file which is a video format. Default: `demo/stdet_demo.mp4`.
 - `PREDICT_STEPSIZE`: Make a prediction per N frames.  Default: 8.
@@ -188,7 +189,7 @@ python demo/demo_spatiotemporal_det.py --video demo/demo.mp4 \
     --det-checkpoint http://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/faster_rcnn_r50_fpn_2x_coco/faster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth \
     --det-score-thr 0.9 \
     --action-score-thr 0.5 \
-    --label-map demo/label_map_ava.txt \
+    --label-map tools/data/ava/label_map.txt \
     --predict-stepsize 8 \
     --output-stepsize 4 \
     --output-fps 6
@@ -206,7 +207,7 @@ python demo/demo_gradcam.py ${CONFIG_FILE} ${CHECKPOINT_FILE} ${VIDEO_FILE} [--u
 
 - `--use-frames`: If specified, the demo will take rawframes as input. Otherwise, it will take a video as input.
 - `DEVICE_TYPE`: Type of device to run the demo. Allowed values are cuda device like `cuda:0` or `cpu`. If not specified, it will be set to `cuda:0`.
-- `FPS`: FPS value of the output video when using rawframes as input. If not specified, it wll be set to 30.
+- `FPS`: FPS value of the output video when using rawframes as input. If not specified, it will be set to 30.
 - `OUT_FILE`: Path to the output file which can be a video format or gif format. If not specified, it will be set to `None` and does not generate the output file.
 - `TARGET_LAYER_NAME`: Layer name to generate GradCAM localization map.
 - `TARGET_RESOLUTION`: Resolution(desired_width, desired_height) for resizing the frames before output when using a video as input. If not specified, it will be None and the frames are resized by keeping the existing aspect ratio.
@@ -253,7 +254,9 @@ Optional arguments:
 - `DRAWING_FPS`: Upper bound FPS value of the output drawing. If not specified, it will be set to 20.
 - `INFERENCE_FPS`: Upper bound FPS value of the output drawing. If not specified, it will be set to 4.
 
-**Note**: If your hardware is good enough, increasing the value of `DRAWING_FPS` and `INFERENCE_FPS` will get a better experience.
+:::{note}
+If your hardware is good enough, increasing the value of `DRAWING_FPS` and `INFERENCE_FPS` will get a better experience.
+:::
 
 Examples:
 
@@ -265,7 +268,7 @@ or use checkpoint url from `configs/` to directly load corresponding checkpoint,
 
     ```shell
     python demo/webcam_demo.py configs/recognition/tsn/tsn_r50_video_inference_1x1x3_100e_kinetics400_rgb.py \
-      checkpoints/tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth demo/label_map_k400.txt --average-size 5 \
+      checkpoints/tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth tools/data/kinetics/label_map_k400.txt --average-size 5 \
       --threshold 0.2 --device cpu
     ```
 
@@ -275,7 +278,7 @@ or use checkpoint url from `configs/` to directly load corresponding checkpoint,
     ```shell
     python demo/webcam_demo.py configs/recognition/tsn/tsn_r50_video_inference_1x1x3_100e_kinetics400_rgb.py \
       https://download.openmmlab.com/mmaction/recognition/tsn/tsn_r50_1x1x3_100e_kinetics400_rgb/tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth \
-      demo/label_map_k400.txt --average-size 5 --threshold 0.2 --device cpu
+      tools/data/kinetics/label_map_k400.txt --average-size 5 --threshold 0.2 --device cpu
     ```
 
 3. Recognize the action from web camera as input by using a I3D model on gpu by default, averaging the score per 5 times
@@ -283,16 +286,18 @@ or use checkpoint url from `configs/` to directly load corresponding checkpoint,
 
     ```shell
     python demo/webcam_demo.py configs/recognition/i3d/i3d_r50_video_inference_32x2x1_100e_kinetics400_rgb.py \
-      checkpoints/i3d_r50_32x2x1_100e_kinetics400_rgb_20200614-c25ef9a4.pth demo/label_map_k400.txt \
+      checkpoints/i3d_r50_32x2x1_100e_kinetics400_rgb_20200614-c25ef9a4.pth tools/data/kinetics/label_map_k400.txt \
       --average-size 5 --threshold 0.2
     ```
 
-**Note:** Considering the efficiency difference for users' hardware, Some modifications might be done to suit the case.
+:::{note}
+Considering the efficiency difference for users' hardware, Some modifications might be done to suit the case.
 Users can change:
 
 1). `SampleFrames` step (especially the number of `clip_len` and `num_clips`) of `test_pipeline` in the config file, like `--cfg-options data.test.pipeline.0.num_clips=3`.
 2). Change to the suitable Crop methods like `TenCrop`, `ThreeCrop`, `CenterCrop`, etc. in `test_pipeline` of the config file, like `--cfg-options data.test.pipeline.4.type=CenterCrop`.
 3). Change the number of `--average-size`. The smaller, the faster.
+:::
 
 ## Long video demo
 
@@ -323,7 +328,7 @@ or use checkpoint url from `configs/` to directly load corresponding checkpoint,
 
     ```shell
     python demo/long_video_demo.py configs/recognition/tsn/tsn_r50_video_inference_1x1x3_100e_kinetics400_rgb.py \
-      checkpoints/tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth PATH_TO_LONG_VIDEO demo/label_map_k400.txt PATH_TO_SAVED_VIDEO \
+      checkpoints/tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth PATH_TO_LONG_VIDEO tools/data/kinetics/label_map_k400.txt PATH_TO_SAVED_VIDEO \
       --input-step 3 --device cpu --threshold 0.2
     ```
 
@@ -333,7 +338,7 @@ or use checkpoint url from `configs/` to directly load corresponding checkpoint,
     ```shell
     python demo/long_video_demo.py configs/recognition/tsn/tsn_r50_video_inference_1x1x3_100e_kinetics400_rgb.py \
       https://download.openmmlab.com/mmaction/recognition/tsn/tsn_r50_1x1x3_100e_kinetics400_rgb/tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth \
-      PATH_TO_LONG_VIDEO demo/label_map_k400.txt PATH_TO_SAVED_VIDEO --input-step 3 --device cpu --threshold 0.2
+      PATH_TO_LONG_VIDEO tools/data/kinetics/label_map_k400.txt PATH_TO_SAVED_VIDEO --input-step 3 --device cpu --threshold 0.2
     ```
 
 3. Predict different labels in a long video from web by using a TSN model on cpu, with 3 frames for input steps (that is, random sample one from each 3 frames)
@@ -343,14 +348,14 @@ or use checkpoint url from `configs/` to directly load corresponding checkpoint,
     python demo/long_video_demo.py configs/recognition/tsn/tsn_r50_video_inference_1x1x3_100e_kinetics400_rgb.py \
       https://download.openmmlab.com/mmaction/recognition/tsn/tsn_r50_1x1x3_100e_kinetics400_rgb/tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth \
       https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4 \
-      demo/label_map_k400.txt PATH_TO_SAVED_VIDEO --input-step 3 --device cpu --threshold 0.2
+      tools/data/kinetics/label_map_k400.txt PATH_TO_SAVED_VIDEO --input-step 3 --device cpu --threshold 0.2
     ```
 
 4. Predict different labels in a long video by using a I3D model on gpu, with input_step=1, threshold=0.01 as default and print the labels in cyan.
 
     ```shell
     python demo/long_video_demo.py configs/recognition/i3d/i3d_r50_video_inference_32x2x1_100e_kinetics400_rgb.py \
-      checkpoints/i3d_r50_256p_32x2x1_100e_kinetics400_rgb_20200801-7d9f44de.pth PATH_TO_LONG_VIDEO demo/label_map_k400.txt PATH_TO_SAVED_VIDEO \
+      checkpoints/i3d_r50_256p_32x2x1_100e_kinetics400_rgb_20200801-7d9f44de.pth PATH_TO_LONG_VIDEO tools/data/kinetics/label_map_k400.txt PATH_TO_SAVED_VIDEO \
       --label-color 255 255 0
     ```
 
@@ -358,7 +363,7 @@ or use checkpoint url from `configs/` to directly load corresponding checkpoint,
 
     ```shell
     python demo/long_video_demo.py configs/recognition/i3d/i3d_r50_video_inference_32x2x1_100e_kinetics400_rgb.py \
-      checkpoints/i3d_r50_256p_32x2x1_100e_kinetics400_rgb_20200801-7d9f44de.pth PATH_TO_LONG_VIDEO demo/label_map_k400.txt ./results.json
+      checkpoints/i3d_r50_256p_32x2x1_100e_kinetics400_rgb_20200801-7d9f44de.pth PATH_TO_LONG_VIDEO tools/data/kinetics/label_map_k400.txt ./results.json
     ```
 
 ## SpatioTemporal Action Detection Webcam Demo
@@ -394,7 +399,7 @@ Optional arguments:
 - `HUMAN_DETECTION_CHECKPOINT`: The human detection checkpoint URL.
 - `HUMAN_DETECTION_SCORE_THRE`: The score threshold for human detection. Default: 0.9.
 - `INPUT_VIDEO`: The webcam id or video path of the source. Default: `0`.
-- `LABEL_MAP`: The label map used. Default: `demo/label_map_ava.txt`.
+- `LABEL_MAP`: The label map used. Default: `tools/data/ava/label_map.txt`.
 - `DEVICE`: Type of device to run the demo. Allowed values are cuda device like `cuda:0` or `cpu`.  Default: `cuda:0`.
 - `OUTPUT_FPS`: The FPS of demo video output. Default: 15.
 - `OUTPUT_FILENAME`: Path to the output file which is a video format. Default: None.
@@ -434,7 +439,7 @@ python demo/webcam_demo_spatiotemporal_det.py \
     --det-checkpoint http://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/faster_rcnn_r50_fpn_2x_coco/faster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth \
     --det-score-thr 0.9 \
     --action-score-thr 0.5 \
-    --label-map demo/label_map_ava.txt \
+    --label-map tools/data/ava/label_map.txt \
     --predict-stepsize 40 \
     --output-fps 20 \
     --show
@@ -467,7 +472,7 @@ Optional arguments:
 - `HUMAN_DETECTION_SCORE_THRE`: The score threshold for human detection. Default: 0.9.
 - `HUMAN_POSE_ESTIMATION_CONFIG_FILE`: The human pose estimation config file path (trained on COCO-Keypoint).
 - `HUMAN_POSE_ESTIMATION_CHECKPOINT`: The human pose estimation checkpoint URL (trained on COCO-Keypoint).
-- `LABEL_MAP`: The label map used. Default: `demo/label_map_ava.txt`.
+- `LABEL_MAP`: The label map used. Default: `tools/data/ava/label_map.txt`.
 - `DEVICE`: Type of device to run the demo. Allowed values are cuda device like `cuda:0` or `cpu`.  Default: `cuda:0`.
 - `SHORT_SIDE`: The short side used for frame extraction. Default: 480.
 
@@ -486,5 +491,141 @@ python demo/demo_posec3d.py demo/ntu_sample.avi demo/posec3d_demo.mp4 \
     --det-score-thr 0.9 \
     --pose-config demo/hrnet_w32_coco_256x192.py \
     --pose-checkpoint https://download.openmmlab.com/mmpose/top_down/hrnet/hrnet_w32_coco_256x192-c78dce93_20200708.pth \
-    --label-map demo/label_map_ntu120.txt
+    --label-map tools/data/skeleton/label_map_ntu120.txt
+```
+
+## Video Structuralize Demo
+
+We provide a demo script to to predict the skeleton-based and rgb-based action recognition and spatio-temporal action detection result using a single video.
+
+```shell
+python demo/demo_video_structuralize.py
+    [--rgb-stdet-config ${RGB_BASED_SPATIO_TEMPORAL_ACTION_DETECTION_CONFIG_FILE}] \
+    [--rgb-stdet-checkpoint ${RGB_BASED_SPATIO_TEMPORAL_ACTION_DETECTION_CHECKPOINT}] \
+    [--skeleton-stdet-checkpoint ${SKELETON_BASED_SPATIO_TEMPORAL_ACTION_DETECTION_CHECKPOINT}] \
+    [--det-config ${HUMAN_DETECTION_CONFIG_FILE}] \
+    [--det-checkpoint ${HUMAN_DETECTION_CHECKPOINT}] \
+    [--pose-config ${HUMAN_POSE_ESTIMATION_CONFIG_FILE}] \
+    [--pose-checkpoint ${HUMAN_POSE_ESTIMATION_CHECKPOINT}] \
+    [--skeleton-config ${SKELETON_BASED_ACTION_RECOGNITION_CONFIG_FILE}] \
+    [--skeleton-checkpoint ${SKELETON_BASED_ACTION_RECOGNITION_CHECKPOINT}] \
+    [--rgb-config ${RGB_BASED_ACTION_RECOGNITION_CONFIG_FILE}] \
+    [--rgb-checkpoint ${RGB_BASED_ACTION_RECOGNITION_CHECKPOINT}] \
+    [--use-skeleton-stdet ${USE_SKELETON_BASED_SPATIO_TEMPORAL_DETECTION_METHOD}] \
+    [--use-skeleton-recog ${USE_SKELETON_BASED_ACTION_RECOGNITION_METHOD}] \
+    [--det-score-thr ${HUMAN_DETECTION_SCORE_THRE}] \
+    [--action-score-thr ${ACTION_DETECTION_SCORE_THRE}] \
+    [--video ${VIDEO_FILE}] \
+    [--label-map-stdet ${LABEL_MAP_FOR_SPATIO_TEMPORAL_ACTION_DETECTION}] \
+    [--device ${DEVICE}] \
+    [--out-filename ${OUTPUT_FILENAME}] \
+    [--predict-stepsize ${PREDICT_STEPSIZE}] \
+    [--output-stepsize ${OUTPU_STEPSIZE}] \
+    [--output-fps ${OUTPUT_FPS}] \
+    [--cfg-options]
+```
+
+Optional arguments:
+
+- `RGB_BASED_SPATIO_TEMPORAL_ACTION_DETECTION_CONFIG_FILE`: The rgb-based spatio temoral action detection config file path.
+- `RGB_BASED_SPATIO_TEMPORAL_ACTION_DETECTION_CHECKPOINT`: The rgb-based spatio temoral action detection checkpoint path or URL.
+- `SKELETON_BASED_SPATIO_TEMPORAL_ACTION_DETECTION_CHECKPOINT`: The skeleton-based spatio temoral action detection checkpoint path or URL.
+- `HUMAN_DETECTION_CONFIG_FILE`: The human detection config file path.
+- `HUMAN_DETECTION_CHECKPOINT`: The human detection checkpoint URL.
+- `HUMAN_POSE_ESTIMATION_CONFIG_FILE`: The human pose estimation config file path (trained on COCO-Keypoint).
+- `HUMAN_POSE_ESTIMATION_CHECKPOINT`: The human pose estimation checkpoint URL (trained on COCO-Keypoint).
+- `SKELETON_BASED_ACTION_RECOGNITION_CONFIG_FILE`: The skeleton-based action recognition config file path.
+- `SKELETON_BASED_ACTION_RECOGNITION_CHECKPOINT`: The skeleton-based action recognition checkpoint path or URL.
+- `RGB_BASED_ACTION_RECOGNITION_CONFIG_FILE`: The rgb-based action recognition config file path.
+- `RGB_BASED_ACTION_RECOGNITION_CHECKPOINT`: The rgb-based action recognition checkpoint path or URL.
+- `USE_SKELETON_BASED_SPATIO_TEMPORAL_DETECTION_METHOD`: Use skeleton-based spatio temporal action detection method.
+- `USE_SKELETON_BASED_ACTION_RECOGNITION_METHOD`: Use skeleton-based action recognition method.
+- `HUMAN_DETECTION_SCORE_THRE`: The score threshold for human detection. Default: 0.9.
+- `ACTION_DETECTION_SCORE_THRE`: The score threshold for action detection. Default: 0.4.
+- `LABEL_MAP_FOR_SPATIO_TEMPORAL_ACTION_DETECTION`: The label map for spatio temporal action detection used. Default: `tools/data/ava/label_map.txt`.
+- `LABEL_MAP`: The label map for action recognition. Default: `tools/data/kinetics/label_map_k400.txt`.
+- `DEVICE`: Type of device to run the demo. Allowed values are cuda device like `cuda:0` or `cpu`.  Default: `cuda:0`.
+- `OUTPUT_FILENAME`: Path to the output file which is a video format. Default: `demo/test_stdet_recognition_output.mp4`.
+- `PREDICT_STEPSIZE`: Make a prediction per N frames.  Default: 8.
+- `OUTPUT_STEPSIZE`: Output 1 frame per N frames in the input video. Note that `PREDICT_STEPSIZE % OUTPUT_STEPSIZE == 0`. Default: 1.
+- `OUTPUT_FPS`: The FPS of demo video output. Default: 24.
+
+Examples:
+
+Assume that you are located at `$MMACTION2` .
+
+1. Use the Faster RCNN as the human detector, HRNetw32 as the pose estimator, PoseC3D as the skeleton-based action recognizer and the skeleton-based spatio temporal action detector. Making action detection predictions per 8 frames, and output 1 frame per 1 frame to the output video. The FPS of the output video is 24.
+
+```shell
+python demo/demo_video_structuralize.py
+    --skeleton-stdet-checkpoint https://download.openmmlab.com/mmaction/skeleton/posec3d/posec3d_ava.pth \
+    --det-config demo/faster_rcnn_r50_fpn_2x_coco.py \
+    --det-checkpoint http://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/faster_rcnn_r50_fpn_2x_coco/faster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth \
+    --pose-config demo/hrnet_w32_coco_256x192.py
+    --pose-checkpoint https://download.openmmlab.com/mmpose/top_down/hrnet/
+    hrnet_w32_coco_256x192-c78dce93_20200708.pth \
+    --skeleton-config configs/skeleton/posec3d/slowonly_r50_u48_240e_ntu120_xsub_keypoint.py \
+    --skeleton-checkpoint https://download.openmmlab.com/mmaction/skeleton/posec3d/
+    posec3d_k400.pth \
+    --use-skeleton-stdet \
+    --use-skeleton-recog \
+    --label-map-stdet tools/data/ava/label_map.txt \
+    --label-map tools/data/kinetics/label_map_k400.txt
+```
+
+2. Use the Faster RCNN as the human detector, TSN-R50-1x1x3 as the rgb-based action recognizer, SlowOnly-8x8-R101 as the rgb-based spatio temporal action detector. Making action detection predictions per 8 frames, and output 1 frame per 1 frame to the output video. The FPS of the output video is 24.
+
+```shell
+python demo/demo_video_structuralize.py
+    --rgb-stdet-config configs/detection/ava/slowonly_omnisource_pretrained_r101_8x8x1_20e_ava_rgb.py \
+    --rgb-stdet-checkpoint  https://download.openmmlab.com/mmaction/detection/ava/slowonly_omnisource_pretrained_r101_8x8x1_20e_ava_rgb/slowonly_omnisource_pretrained_r101_8x8x1_20e_ava_rgb_20201217-16378594.pth \
+    --det-config demo/faster_rcnn_r50_fpn_2x_coco.py \
+    --det-checkpoint http://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/faster_rcnn_r50_fpn_2x_coco/faster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth \
+    --rgb-config configs/recognition/tsn/
+    tsn_r50_video_inference_1x1x3_100e_kinetics400_rgb.py \
+    --rgb-checkpoint https://download.openmmlab.com/mmaction/recognition/
+    tsn/tsn_r50_1x1x3_100e_kinetics400_rgb/
+    tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth \
+    --label-map-stdet tools/data/ava/label_map.txt \
+    --label-map tools/data/kinetics/label_map_k400.txt
+```
+
+3. Use the Faster RCNN as the human detector, HRNetw32 as the pose estimator, PoseC3D as the skeleton-based action recognizer, SlowOnly-8x8-R101 as the rgb-based spatio temporal action detector. Making action detection predictions per 8 frames, and output 1 frame per 1 frame to the output video. The FPS of the output video is 24.
+
+```shell
+python demo/demo_video_structuralize.py
+    --rgb-stdet-config configs/detection/ava/slowonly_omnisource_pretrained_r101_8x8x1_20e_ava_rgb.py \
+    --rgb-stdet-checkpoint  https://download.openmmlab.com/mmaction/detection/ava/slowonly_omnisource_pretrained_r101_8x8x1_20e_ava_rgb/slowonly_omnisource_pretrained_r101_8x8x1_20e_ava_rgb_20201217-16378594.pth \
+    --det-config demo/faster_rcnn_r50_fpn_2x_coco.py \
+    --det-checkpoint http://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/faster_rcnn_r50_fpn_2x_coco/faster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth \
+    --pose-config demo/hrnet_w32_coco_256x192.py
+    --pose-checkpoint https://download.openmmlab.com/mmpose/top_down/hrnet/
+    hrnet_w32_coco_256x192-c78dce93_20200708.pth \
+    --skeleton-config configs/skeleton/posec3d/slowonly_r50_u48_240e_ntu120_xsub_keypoint.py \
+    --skeleton-checkpoint https://download.openmmlab.com/mmaction/skeleton/posec3d/
+    posec3d_k400.pth \
+    --use-skeleton-recog \
+    --label-map-stdet tools/data/ava/label_map.txt \
+    --label-map tools/data/kinetics/label_map_k400.txt
+```
+
+4. Use the Faster RCNN as the human detector, HRNetw32 as the pose estimator, TSN-R50-1x1x3 as the rgb-based action recognizer, PoseC3D as the skeleton-based spatio temporal action detector. Making action detection predictions per 8 frames, and output 1 frame per 1 frame to the output video. The FPS of the output video is 24.
+
+```shell
+python demo/demo_video_structuralize.py
+    --skeleton-stdet-checkpoint https://download.openmmlab.com/mmaction/skeleton/posec3d/posec3d_ava.pth \
+    --det-config demo/faster_rcnn_r50_fpn_2x_coco.py \
+    --det-checkpoint http://download.openmmlab.com/mmdetection/v2.0/faster_rcnn/faster_rcnn_r50_fpn_2x_coco/faster_rcnn_r50_fpn_2x_coco_bbox_mAP-0.384_20200504_210434-a5d8aa15.pth \
+    --pose-config demo/hrnet_w32_coco_256x192.py
+    --pose-checkpoint https://download.openmmlab.com/mmpose/top_down/hrnet/
+    hrnet_w32_coco_256x192-c78dce93_20200708.pth \
+    --skeleton-config configs/skeleton/posec3d/slowonly_r50_u48_240e_ntu120_xsub_keypoint.py \
+    --rgb-config configs/recognition/tsn/
+    tsn_r50_video_inference_1x1x3_100e_kinetics400_rgb.py \
+    --rgb-checkpoint https://download.openmmlab.com/mmaction/recognition/
+    tsn/tsn_r50_1x1x3_100e_kinetics400_rgb/
+    tsn_r50_1x1x3_100e_kinetics400_rgb_20200614-e508be42.pth \
+    --use-skeleton-stdet \
+    --label-map-stdet tools/data/ava/label_map.txt \
+    --label-map tools/data/kinetics/label_map_k400.txt
 ```

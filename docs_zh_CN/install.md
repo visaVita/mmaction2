@@ -4,14 +4,15 @@
 
 <!-- TOC -->
 
-- [安装依赖包](#安装依赖包)
-- [准备环境](#准备环境)
-- [MMAction2 的安装步骤](#MMAction2-的安装步骤)
-- [CPU 环境下的安装步骤](#CPU-环境下的安装步骤)
-- [利用 Docker 镜像安装 MMAction2](#利用-Docker-镜像安装-MMAction2)
-- [源码安装 MMAction2](#源码安装-MMAction2)
-- [在多个 MMAction2 版本下进行开发](#在多个-MMAction2-版本下进行开发)
-- [安装验证](#安装验证)
+- [安装](#安装)
+  - [安装依赖包](#安装依赖包)
+  - [准备环境](#准备环境)
+  - [MMAction2 的安装步骤](#mmaction2-的安装步骤)
+  - [CPU 环境下的安装步骤](#cpu-环境下的安装步骤)
+  - [利用 Docker 镜像安装 MMAction2](#利用-docker-镜像安装-mmaction2)
+  - [源码安装 MMAction2](#源码安装-mmaction2)
+  - [在多个 MMAction2 版本下进行开发](#在多个-mmaction2-版本下进行开发)
+  - [安装验证](#安装验证)
 
 <!-- TOC -->
 
@@ -240,5 +241,5 @@ device = torch.device(device)
 
 model = init_recognizer(config_file, device=device)
 # 进行演示视频的推理
-inference_recognizer(model, 'demo/demo.mp4', 'demo/label_map_k400.txt')
+inference_recognizer(model, 'demo/demo.mp4')
 ```

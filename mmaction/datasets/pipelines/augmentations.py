@@ -1,18 +1,18 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import random
 import warnings
 from collections.abc import Sequence
-from distutils.version import LooseVersion
 
 import cv2
-import math
 import mmcv
 import numpy as np
+from mmcv.utils import digit_version
 from torch.nn.modules.utils import _pair
 import timm.data as tdata
 import torch
 
 from ..builder import PIPELINES
-from .formating import to_tensor
+from .formatting import to_tensor
 
 
 def _combine_quadruple(a, b):
@@ -71,7 +71,7 @@ class TorchvisionTrans:
             import torchvision.transforms as tv_trans
         except ImportError:
             raise RuntimeError('Install torchvision to use TorchvisionTrans')
-        if LooseVersion(torchvision.__version__) < LooseVersion('0.8.0'):
+        if digit_version(torchvision.__version__) < digit_version('0.8.0'):
             raise RuntimeError('The version of torchvision should be at least '
                                '0.8.0')
 
@@ -108,7 +108,7 @@ class PytorchVideoTrans:
             import pytorchvideo.transforms as ptv_trans
         except ImportError:
             raise RuntimeError('Install pytorchvideo to use PytorchVideoTrans')
-        if LooseVersion(torch.__version__) < LooseVersion('1.8.0'):
+        if digit_version(torch.__version__) < digit_version('1.8.0'):
             raise RuntimeError(
                 'The version of PyTorch should be at least 1.8.0')
 
@@ -365,7 +365,7 @@ class Imgaug:
         """Default transforms for imgaug.
 
         Implement RandAugment by imgaug.
-        Plase visit `https://arxiv.org/abs/1909.13719` for more information.
+        Please visit `https://arxiv.org/abs/1909.13719` for more information.
 
         Augmenters and hyper parameters are borrowed from the following repo:
         https://github.com/tensorflow/tpu/blob/master/models/official/efficientnet/autoaugment.py # noqa
@@ -508,41 +508,6 @@ class Imgaug:
 
         return results
 
-@PIPELINES.register_module()
-class RandomErasing(tdata.random_erasing.RandomErasing):
-    def __init__(self, device='cpu', **args):
-        super().__init__(device=device, **args)
-
-    def __call__(self, results):
-        in_type = results['imgs'][0].dtype.type
-
-        rand_state = random.getstate()
-        torchrand_state = torch.get_rng_state()
-        numpyrand_state = np.random.get_state()
-        # not using cuda to preserve the determiness
-
-        out_frame = []
-        for frame in results['imgs']:
-            random.setstate(rand_state)
-            torch.set_rng_state(torchrand_state)
-            np.random.set_state(numpyrand_state)
-            frame = super().__call__(torch.from_numpy(frame).permute(2, 0, 1)).permute(1, 2, 0).numpy()
-            out_frame.append(frame)
-
-        results['imgs'] = out_frame
-        img_h, img_w, _ = results['imgs'][0].shape
-
-        out_type = results['imgs'][0].dtype.type
-        assert in_type == out_type, \
-            ('Timmaug input dtype and output dtype are not the same. ',
-             f'Convert from {in_type} to {out_type}')
-
-        if 'gt_bboxes' in results:
-            raise NotImplementedError('only support recognition now')
-        assert results['img_shape'] == (img_h, img_w)
-
-        return results
-
 
 @PIPELINES.register_module()
 class Fuse:
@@ -586,74 +551,6 @@ class Fuse:
         del results['lazy']
 
         return results
-
-
-@PIPELINES.register_module()
-class RandomScale:
-    """Resize images by a random scale.
-
-    Required keys are "imgs", "img_shape", "modality", added or modified
-    keys are "imgs", "img_shape", "keep_ratio", "scale_factor", "lazy",
-    "scale", "resize_size". Required keys in "lazy" is None, added or
-    modified key is "interpolation".
-
-    Args:
-        scales (tuple[int]): Tuple of scales to be chosen for resize.
-        mode (str): Selection mode for choosing the scale. Options are "range"
-            and "value". If set to "range", The short edge will be randomly
-            chosen from the range of minimum and maximum on the shorter one
-            in all tuples. Otherwise, the longer edge will be randomly chosen
-            from the range of minimum and maximum on the longer one in all
-            tuples. Default: 'range'.
-    """
-
-    def __init__(self, scales, mode='range', **kwargs):
-        warnings.warn('"RandomScale" is deprecated and will be removed in '
-                      'later versions. It is currently not used in MMAction2')
-        self.mode = mode
-        if self.mode not in ['range', 'value']:
-            raise ValueError(f"mode should be 'range' or 'value', "
-                             f'but got {self.mode}')
-        self.scales = scales
-        self.kwargs = kwargs
-
-    def select_scale(self, scales):
-        num_scales = len(scales)
-        if num_scales == 1:
-            # specify a fixed scale
-            scale = scales[0]
-        elif num_scales == 2:
-            if self.mode == 'range':
-                scale_long = [max(s) for s in scales]
-                scale_short = [min(s) for s in scales]
-                long_edge = np.random.randint(
-                    min(scale_long),
-                    max(scale_long) + 1)
-                short_edge = np.random.randint(
-                    min(scale_short),
-                    max(scale_short) + 1)
-                scale = (long_edge, short_edge)
-            elif self.mode == 'value':
-                scale = random.choice(scales)
-        else:
-            if self.mode != 'value':
-                raise ValueError("Only 'value' mode supports more than "
-                                 '2 image scales')
-            scale = random.choice(scales)
-
-        return scale
-
-    def __call__(self, results):
-        scale = self.select_scale(self.scales)
-        results['scale'] = scale
-        resize = Resize(scale, **self.kwargs)
-        results = resize(results)
-        return results
-
-    def __repr__(self):
-        repr_str = (f'{self.__class__.__name__}('
-                    f'scales={self.scales}, mode={self.mode})')
-        return repr_str
 
 
 @PIPELINES.register_module()
@@ -753,7 +650,7 @@ class RandomCrop:
         new_crop_quadruple = [
             old_x_ratio + x_ratio * old_w_ratio,
             old_y_ratio + y_ratio * old_h_ratio, w_ratio * old_w_ratio,
-            h_ratio * old_x_ratio
+            h_ratio * old_h_ratio
         ]
         results['crop_quadruple'] = np.array(
             new_crop_quadruple, dtype=np.float32)
@@ -916,7 +813,7 @@ class RandomResizedCrop(RandomCrop):
         new_crop_quadruple = [
             old_x_ratio + x_ratio * old_w_ratio,
             old_y_ratio + y_ratio * old_h_ratio, w_ratio * old_w_ratio,
-            h_ratio * old_x_ratio
+            h_ratio * old_h_ratio
         ]
         results['crop_quadruple'] = np.array(
             new_crop_quadruple, dtype=np.float32)
@@ -1097,7 +994,7 @@ class MultiScaleCrop(RandomCrop):
         new_crop_quadruple = [
             old_x_ratio + x_ratio * old_w_ratio,
             old_y_ratio + y_ratio * old_h_ratio, w_ratio * old_w_ratio,
-            h_ratio * old_x_ratio
+            h_ratio * old_h_ratio
         ]
         results['crop_quadruple'] = np.array(
             new_crop_quadruple, dtype=np.float32)
@@ -1169,8 +1066,7 @@ class Resize:
                  scale,
                  keep_ratio=True,
                  interpolation='bilinear',
-                 lazy=False,
-                 ):
+                 lazy=False):
         if isinstance(scale, float):
             if scale <= 0:
                 raise ValueError(f'Invalid scale {scale}, must be positive.')
@@ -1228,7 +1124,6 @@ class Resize:
             results['scale_factor'] = np.array([1, 1], dtype=np.float32)
         img_h, img_w = results['img_shape']
 
-        
         if self.keep_ratio:
             new_w, new_h = mmcv.rescale_size((img_w, img_h), self.scale)
         else:
@@ -1656,7 +1551,6 @@ class ColorJitter:
         return repr_str
 
 
-
 @PIPELINES.register_module()
 class CenterCrop(RandomCrop):
     """Crop the center area from images.
@@ -1717,7 +1611,7 @@ class CenterCrop(RandomCrop):
         new_crop_quadruple = [
             old_x_ratio + x_ratio * old_w_ratio,
             old_y_ratio + y_ratio * old_h_ratio, w_ratio * old_w_ratio,
-            h_ratio * old_x_ratio
+            h_ratio * old_h_ratio
         ]
         results['crop_quadruple'] = np.array(
             new_crop_quadruple, dtype=np.float32)
@@ -1754,54 +1648,6 @@ class CenterCrop(RandomCrop):
     def __repr__(self):
         repr_str = (f'{self.__class__.__name__}(crop_size={self.crop_size}, '
                     f'lazy={self.lazy})')
-        return repr_str
-
-@PIPELINES.register_module()
-class Cutout(object):
-    """Randomly mask out one or more patches from an image.
-    Args:
-        n_holes (int): Number of patches to cut out of each image.
-        length (int): The length (in pixels) of each square patch.
-    """
-    def __init__(self, n_holes, length):
-        self.n_holes = n_holes
-        self.length = length
-
-    def __call__(self, results):
-        """
-        Args:
-            img (Tensor): Tensor image of size (C, H, W).
-        Returns:
-            Tensor: Image with n_holes of dimension length x length cut out of it.
-        """
-        imgs = results['imgs']
-        h, w = results['imgs'][0].shape[:2]
-
-        mask = np.ones((h, w), np.float32)
-
-        for n in range(self.n_holes):
-            y = np.random.randint(h)
-            x = np.random.randint(w)
-
-            y1 = np.clip(y - self.length // 2, 0, h)
-            y2 = np.clip(y + self.length // 2, 0, h)
-            x1 = np.clip(x - self.length // 2, 0, w)
-            x2 = np.clip(x + self.length // 2, 0, w)
-
-            mask[y1: y2, x1: x2] = 0.
-
-        mask = torch.from_numpy(mask)
-        mask = mask.expand_as(imgs[0])
-        for i, img in imgs:
-            img = img * mask
-            imgs[i] = img
-        results['imgs'] = imgs
-
-        return results
-    
-    def __repr__(self):
-        repr_str = (f'{self.__class__.__name__}(n_holes={self.n_holes}), '
-                    f'length={self.length})')
         return repr_str
 
 
@@ -1951,75 +1797,6 @@ class TenCrop:
 
 
 @PIPELINES.register_module()
-class MultiGroupCrop:
-    """Randomly crop the images into several groups.
-
-    Crop the random region with the same given crop_size and bounding box
-    into several groups.
-    Required keys are "imgs", added or modified keys are "imgs", "crop_bbox"
-    and "img_shape".
-
-    Args:
-        crop_size(int | tuple[int]): (w, h) of crop size.
-        groups(int): Number of groups.
-    """
-
-    def __init__(self, crop_size, groups):
-        self.crop_size = _pair(crop_size)
-        self.groups = groups
-        if not mmcv.is_tuple_of(self.crop_size, int):
-            raise TypeError('Crop size must be int or tuple of int, '
-                            f'but got {type(crop_size)}')
-
-        if not isinstance(groups, int):
-            raise TypeError(f'Groups must be int, but got {type(groups)}.')
-
-        if groups <= 0:
-            raise ValueError('Groups must be positive.')
-
-    def __call__(self, results):
-        """Performs the MultiGroupCrop augmentation.
-
-        Args:
-            results (dict): The resulting dict to be modified and passed
-                to the next transform in pipeline.
-        """
-        if 'gt_bboxes' in results or 'proposals' in results:
-            warnings.warn('MultiGroupCrop cannot process bounding boxes')
-
-        imgs = results['imgs']
-        img_h, img_w = imgs[0].shape[:2]
-        crop_w, crop_h = self.crop_size
-
-        img_crops = []
-        crop_bboxes = []
-        for _ in range(self.groups):
-            x_offset = random.randint(0, img_w - crop_w)
-            y_offset = random.randint(0, img_h - crop_h)
-
-            bbox = [x_offset, y_offset, x_offset + crop_w, y_offset + crop_h]
-            crop = [
-                img[y_offset:y_offset + crop_h, x_offset:x_offset + crop_w]
-                for img in imgs
-            ]
-            img_crops.extend(crop)
-            crop_bboxes.extend([bbox for _ in range(len(imgs))])
-
-        crop_bboxes = np.array(crop_bboxes)
-        results['imgs'] = img_crops
-        results['crop_bbox'] = crop_bboxes
-        results['img_shape'] = results['imgs'][0].shape[:2]
-
-        return results
-
-    def __repr__(self):
-        repr_str = (f'{self.__class__.__name__}'
-                    f'(crop_size={self.crop_size}, '
-                    f'groups={self.groups})')
-        return repr_str
-
-
-@PIPELINES.register_module()
 class AudioAmplify:
     """Amplify the waveform.
 
@@ -2037,7 +1814,7 @@ class AudioAmplify:
             raise TypeError('Amplification ratio should be float.')
 
     def __call__(self, results):
-        """Perfrom the audio amplification.
+        """Perform the audio amplification.
 
         Args:
             results (dict): The resulting dict to be modified and passed
@@ -2063,8 +1840,8 @@ class MelSpectrogram:
     keys are "audios".
 
     Args:
-        window_size (int): The window size in milisecond. Default: 32.
-        step_size (int): The step size in milisecond. Default: 16.
+        window_size (int): The window size in millisecond. Default: 32.
+        step_size (int): The step size in millisecond. Default: 16.
         n_mels (int): Number of mels. Default: 80.
         fixed_length (int): The sample length of melspectrogram maybe not
             exactly as wished due to different fps, fix the length for batch

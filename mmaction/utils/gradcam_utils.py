@@ -1,3 +1,4 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import torch
 import torch.nn.functional as F
 
@@ -134,8 +135,7 @@ class GradCAM:
             localization_map,
             size=(t, h, w),
             mode='trilinear',
-            align_corners=False,
-            recompute_scale_factor=True)
+            align_corners=False)
 
         # Normalize the localization map.
         localization_map_min, localization_map_max = (

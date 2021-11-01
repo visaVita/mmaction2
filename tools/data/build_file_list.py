@@ -1,3 +1,4 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import argparse
 import glob
 import json
@@ -136,92 +137,15 @@ def build_file_list(splits, frame_info, shuffle=False):
             else:
                 # videos
                 if isinstance(item[1], int):
-                    rgb_list.append(f'{frame_info[item[0]][0]} {item[1]}\n')#
-                    flow_list.append(f'{frame_info[item[0]][0]} {item[1]}\n')#
+                    rgb_list.append(f'{frame_info[item[0]][0]} {item[1]}\n')
+                    flow_list.append(f'{frame_info[item[0]][0]} {item[1]}\n')
                 elif isinstance(item[1], list):
                     # only for multi-label datasets like mmit
-                    rgb_list.append(f'{frame_info[item[0]][0]} ' +#
+                    rgb_list.append(f'{frame_info[item[0]][0]} ' +
                                     ' '.join([str(digit)
                                               for digit in item[1]]) + '\n')
                     flow_list.append(
-                        f'{frame_info[item[0]][0]} ' +#
-                        ' '.join([str(digit) for digit in item[1]]) + '\n')
-                else:
-                    raise ValueError(
-                        'frame_info should be ' +
-                        '[`video`(str), `label`(int)|`labels(list[int])`')
-        if shuffle:
-            random.shuffle(rgb_list)
-            random.shuffle(flow_list)
-        return rgb_list, flow_list
-
-    train_rgb_list, train_flow_list = build_list(splits[0])
-    test_rgb_list, test_flow_list = build_list(splits[1])
-    
-    return (train_rgb_list, test_rgb_list), (train_flow_list, test_flow_list)
-
-
-def build_file_list_kinetics_backup(splits, frame_info, shuffle=False):
-    """Build file list for a certain data split.
-
-    Args:
-        splits (tuple): Data split to generate file list.
-        frame_info (dict): Dict mapping from frames to path. e.g.,
-            'Skiing/v_Skiing_g18_c02': ('data/ucf101/rawframes/Skiing/v_Skiing_g18_c02', 0, 0).  # noqa: E501
-        shuffle (bool): Whether to shuffle the file list.
-
-    Returns:
-        tuple: RGB file list for training and testing, together with
-            Flow file list for training and testing.
-    """
-
-    def build_list(split):
-        """Build RGB and Flow file list with a given split.
-
-        Args:
-            split (list): Split to be generate file list.
-
-        Returns:
-            tuple[list, list]: (rgb_list, flow_list), rgb_list is the
-                generated file list for rgb, flow_list is the generated
-                file list for flow.
-        """
-        rgb_list, flow_list = list(), list()
-        for item in split:
-            v_path = str(item[0][:-14])
-            if v_path not in frame_info:
-                continue
-            if frame_info[v_path][1] > 0:
-                # rawframes
-                rgb_cnt = frame_info[item[0]][1]
-                flow_cnt = frame_info[item[0]][2]
-                if isinstance(item[1], int):
-                    rgb_list.append(f'{item[0]} {rgb_cnt} {item[1]}\n')
-                    flow_list.append(f'{item[0]} {flow_cnt} {item[1]}\n')
-                elif isinstance(item[1], list):
-                    # only for multi-label datasets like mmit
-                    rgb_list.append(f'{item[0]} {rgb_cnt} ' +
-                                    ' '.join([str(digit)
-                                              for digit in item[1]]) + '\n')
-                    rgb_list.append(f'{item[0]} {flow_cnt} ' +
-                                    ' '.join([str(digit)
-                                              for digit in item[1]]) + '\n')
-                else:
-                    raise ValueError(
-                        'frame_info should be ' +
-                        '[`video`(str), `label`(int)|`labels(list[int])`')
-            else:
-                # videos
-                if isinstance(item[1], int):
-                    rgb_list.append(f'{frame_info[v_path][0]} {item[1]}\n')#
-                    flow_list.append(f'{frame_info[v_path][0]} {item[1]}\n')#
-                elif isinstance(item[1], list):
-                    # only for multi-label datasets like mmit
-                    rgb_list.append(f'{frame_info[v_path][0]} ' +#
-                                    ' '.join([str(digit)
-                                              for digit in item[1]]) + '\n')
-                    flow_list.append(
-                        f'{frame_info[v_path][0]} ' +#
+                        f'{frame_info[item[0]][0]} ' +
                         ' '.join([str(digit) for digit in item[1]]) + '\n')
                 else:
                     raise ValueError(

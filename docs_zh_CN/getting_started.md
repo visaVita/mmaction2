@@ -4,21 +4,22 @@
 
 <!-- TOC -->
 
-- [数据集](#数据集)
-- [使用预训练模型进行推理](#使用预训练模型进行推理)
-  - [测试某个数据集](#测试某个数据集)
-  - [使用高级 API 对视频和帧文件夹进行测试](#使用高级-API-对视频和帧文件夹进行测试)
-- [如何建立模型](#如何建立模型)
-  - [使用基本组件建立模型](#使用基本组件建立模型)
-  - [构建新模型](#构建新模型)
-- [如何训练模型](#如何训练模型)
-  - [推理流水线](#推理流水线)
-  - [训练配置](#训练配置)
-  - [使用单个 GPU 进行训练](#使用单个-GPU-进行训练)
-  - [使用多个 GPU 进行训练](#使用多个-GPU-进行训练)
-  - [使用多台机器进行训练](#使用多台机器进行训练)
-  - [使用单台机器启动多个任务](#使用单台机器启动多个任务)
-- [详细教程](#详细教程)
+- [基础教程](#基础教程)
+  - [数据集](#数据集)
+  - [使用预训练模型进行推理](#使用预训练模型进行推理)
+    - [测试某个数据集](#测试某个数据集)
+    - [使用高级 API 对视频和帧文件夹进行测试](#使用高级-api-对视频和帧文件夹进行测试)
+  - [如何建立模型](#如何建立模型)
+    - [使用基本组件建立模型](#使用基本组件建立模型)
+    - [构建新模型](#构建新模型)
+  - [如何训练模型](#如何训练模型)
+    - [推理流水线](#推理流水线)
+    - [训练配置](#训练配置)
+    - [使用单个 GPU 进行训练](#使用单个-gpu-进行训练)
+    - [使用多个 GPU 进行训练](#使用多个-gpu-进行训练)
+    - [使用多台机器进行训练](#使用多台机器进行训练)
+    - [使用单台机器启动多个任务](#使用单台机器启动多个任务)
+  - [详细教程](#详细教程)
 
 <!-- TOC -->
 
@@ -146,10 +147,14 @@ model = init_recognizer(config_file, checkpoint_file, device=device)
 
 # 测试单个视频并显示其结果
 video = 'demo/demo.mp4'
-labels = 'demo/label_map_k400.txt'
+labels = 'tools/data/kinetics/label_map_k400.txt'
 results = inference_recognizer(model, video, labels)
 
 # 显示结果
+labels = open('tools/data/kinetics/label_map_k400.txt').readlines()
+labels = [x.strip() for x in labels]
+results = [(labels[k[0]], k[1]) for k in results]
+
 print(f'The top-5 labels with corresponding scores are:')
 for result in results:
     print(f'{result[0]}: ', result[1])
@@ -175,10 +180,14 @@ model = init_recognizer(config_file, checkpoint_file, device=device, use_frames=
 
 # 测试单个视频的帧文件夹并显示其结果
 video = 'SOME_DIR_PATH/'
-labels = 'demo/label_map_k400.txt'
+labels = 'tools/data/kinetics/label_map_k400.txt'
 results = inference_recognizer(model, video, labels, use_frames=True)
 
 # 显示结果
+labels = open('tools/data/kinetics/label_map_k400.txt').readlines()
+labels = [x.strip() for x in labels]
+results = [(labels[k[0]], k[1]) for k in results]
+
 print(f'The top-5 labels with corresponding scores are:')
 for result in results:
     print(f'{result[0]}: ', result[1])
@@ -204,10 +213,14 @@ model = init_recognizer(config_file, checkpoint_file, device=device)
 
 # 测试单个视频的 url 并显示其结果
 video = 'https://www.learningcontainer.com/wp-content/uploads/2020/05/sample-mp4-file.mp4'
-labels = 'demo/label_map_k400.txt'
+labels = 'tools/data/kinetics/label_map_k400.txt'
 results = inference_recognizer(model, video, labels)
 
-#  根据配置文件和检查点来建立模型
+# 显示结果
+labels = open('tools/data/kinetics/label_map_k400.txt').readlines()
+labels = [x.strip() for x in labels]
+results = [(labels[k[0]], k[1]) for k in results]
+
 print(f'The top-5 labels with corresponding scores are:')
 for result in results:
     print(f'{result[0]}: ', result[1])

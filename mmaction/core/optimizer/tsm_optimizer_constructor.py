@@ -1,3 +1,4 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import torch
 from mmcv.runner import OPTIMIZER_BUILDERS, DefaultOptimizerConstructor
 from mmcv.utils import SyncBatchNorm, _BatchNorm, _ConvNd
@@ -107,4 +108,3 @@ class TSMOptimizerConstructor(DefaultOptimizerConstructor):
             'lr': self.base_lr * 10,
             'weight_decay': 0
         })
-

@@ -11,7 +11,7 @@ from .common import (LFB, TAM, Conv2plus1d, ConvAudio,
                      DividedSpatialAttentionWithNorm,
                      DividedTemporalAttentionWithNorm, FFNWithNorm)
 from .heads import (ACRNHead, AudioTSNHead, AVARoIHead, BaseHead, BBoxHeadAVA,
-                    FBOHead, I3DHead, LFBInferHead, SlowFastHead,
+                    FBOHead, I3DHead, LFBInferHead, SlowFastHead, STGCNHead,
                     TimeSformerHead, TPNHead, TRNHead, TSMHead, TSNHead,
                     X3DHead)
 from .localizers import BMN, PEM, TEM
@@ -22,13 +22,14 @@ from .necks import TPN
 from .recognizers import (AudioRecognizer, BaseRecognizer, Recognizer2D,
                           Recognizer3D)
 from .roi_extractors import SingleRoIExtractor3D
+from .skeleton_gcn import BaseGCN, SkeletonGCN
 
 __all__ = [
     'BACKBONES', 'HEADS', 'RECOGNIZERS', 'build_recognizer', 'build_head',
-    'build_backbone', 'Recognizer2D', 'Recognizer3D', 'C3D', 'ResNet',
+    'build_backbone', 'Recognizer2D', 'Recognizer3D', 'C3D', 'ResNet', 'STGCN',
     'ResNet3d', 'ResNet2Plus1d', 'I3DHead', 'TSNHead', 'TSMHead', 'BaseHead',
-    'BaseRecognizer', 'LOSSES', 'CrossEntropyLoss', 'NLLLoss', 'HVULoss',
-    'ResNetTSM', 'ResNet3dSlowFast', 'SlowFastHead', 'Conv2plus1d',
+    'STGCNHead', 'BaseRecognizer', 'LOSSES', 'CrossEntropyLoss', 'NLLLoss',
+    'HVULoss', 'ResNetTSM', 'ResNet3dSlowFast', 'SlowFastHead', 'Conv2plus1d',
     'ResNet3dSlowOnly', 'BCELossWithLogits', 'LOCALIZERS', 'build_localizer',
     'PEM', 'TAM', 'TEM', 'BinaryLogisticRegressionLoss', 'BMN', 'BMNLoss',
     'build_model', 'OHEMHingeLoss', 'SSNLoss', 'ResNet3dCSN', 'ResNetTIN',
@@ -38,6 +39,7 @@ __all__ = [
     'ConvAudio', 'AVARoIHead', 'MobileNetV2', 'MobileNetV2TSM', 'TANet', 'LFB',
     'FBOHead', 'LFBInferHead', 'TRNHead', 'NECKS', 'TimeSformer',
     'TimeSformerHead', 'DividedSpatialAttentionWithNorm',
-    'DividedTemporalAttentionWithNorm', 'FFNWithNorm', 'ACRNHead', 
-    'SlowFast_CoT', 'ResNet3d_CoT', 'ResNet3dLayer_CoT'
+    'SlowFast_CoT', 'ResNet3d_CoT', 'ResNet3dLayer_CoT',
+    'DividedTemporalAttentionWithNorm', 'FFNWithNorm', 'ACRNHead', 'BaseGCN',
+    'SkeletonGCN'
 ]

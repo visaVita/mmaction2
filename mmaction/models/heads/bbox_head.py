@@ -1,3 +1,4 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -45,16 +46,15 @@ class BBoxHeadAVA(nn.Module):
             spatial_pool_type='max',
             in_channels=2048,
             # The first class is reserved, to classify bbox as pos / neg
-            focal_gamma=1.,
-            focal_alpha=3.,
+            focal_gamma=0.,
+            focal_alpha=1.,
             num_classes=81,
             dropout_ratio=0,
             dropout_before_pool=True,
             topk=(3, 5),
-            multilabel=True
-            ):
-        super().__init__()
-        self.loss_cls = build_loss(dict(type='AsymmetricLossOptimized'))
+            multilabel=True):
+
+        super(BBoxHeadAVA, self).__init__()
         assert temporal_pool_type in ['max', 'avg']
         assert spatial_pool_type in ['max', 'avg']
         self.temporal_pool_type = temporal_pool_type
@@ -89,7 +89,6 @@ class BBoxHeadAVA(nn.Module):
         assert self.multilabel
 
         in_channels = self.in_channels
-        self.hidden_dim = 1024
         # Pool by default
         if self.temporal_pool_type == 'avg':
             self.temporal_pool = nn.AdaptiveAvgPool3d((1, None, None))
@@ -103,52 +102,17 @@ class BBoxHeadAVA(nn.Module):
         if dropout_ratio > 0:
             self.dropout = nn.Dropout(dropout_ratio)
 
-        #######################################################
-        self.transformer_s = Transformer(d_model=self.hidden_dim, nhead=8, num_encoder_layers=0,
-                                        num_decoder_layers=2, dim_feedforward=self.hidden_dim*2,
-                                        dropout=0.2, rm_first_self_attn=False, rm_self_attn_dec=False)
-        self.transformer_t = Transformer(d_model=self.hidden_dim, nhead=8, num_encoder_layers=0,
-                                        num_decoder_layers=2, dim_feedforward=self.hidden_dim*2,
-                                        dropout=0.2, rm_first_self_attn=False, rm_self_attn_dec=False)
-        self.pos_enc_module = PositionalEnconding(d_model=self.hidden_dim, dropout=0.1, max_len=5000, ret_enc=True)
-        
-        # self.input_proj_s = nn.Conv1d(2048, 2048, 1)
-        # self.input_proj_t = nn.Conv1d(256, 128, 1)
-        # self.query_embed_s = nn.Embedding(num_classes, 2048)
-        # self.query_embed_t = nn.Embedding(num_classes, 256)
-        self.transform = nn.Conv3d(self.in_channels, self.hidden_dim, 1)
-        self.base_cls = nn.Linear(self.hidden_dim, num_classes)
-        
-        # self.fc_cls = GroupWiseLinear(num_classes, in_channels)
-        self.fc_cls = nn.Linear(2*self.hidden_dim, num_classes)
-        # self.temporal_pool = nn.AdaptiveAvgPool3d((1, None, None))
-        # self.spatial_pool  = nn.AdaptiveAvgPool3d((None, 1, 1))
-        self.mask_mat = nn.Parameter(torch.eye(self.num_classes).float())
-        # self.delta = nn.Parameter(torch.tensor(1.0))
-        # self.theta = nn.Parameter(torch.tensor(0.5))
-        # self.gamma = nn.Parameter(torch.tensor(0.5))
-
-
-        ######################
-
-        
-        # self.fc_cls = nn.Linear(in_channels, num_classes)
+        self.fc_cls = nn.Linear(in_channels, num_classes)
         self.debug_imgs = None
 
     def init_weights(self):
-        nn.init.normal_(self.base_cls.weight, 0, 0.01)
-        nn.init.constant_(self.base_cls.bias, 0)
         nn.init.normal_(self.fc_cls.weight, 0, 0.01)
         nn.init.constant_(self.fc_cls.bias, 0)
-        # self.transformer_s._reset_parameters()
-        # self.transformer_t._reset_parameters()
-
 
     def forward(self, x):
-        """ if self.dropout_before_pool and self.dropout_ratio > 0:
+        if self.dropout_before_pool and self.dropout_ratio > 0:
             x = self.dropout(x)
-        import ipdb
-        ipdb.set_trace()
+
         x = self.temporal_pool(x)
         x = self.spatial_pool(x)
 
@@ -156,39 +120,7 @@ class BBoxHeadAVA(nn.Module):
             x = self.dropout(x)
 
         x = x.view(x.size(0), -1)
-        cls_score = self.fc_cls(x) """
-
-        
-        if self.dropout_before_pool and self.dropout_ratio > 0:
-            x = self.dropout(x)
-        x = self.transform(x)
-        F_s = self.temporal_pool(x)
-        F_t = self.spatial_pool(x)
-        F_s = F_s.view(F_s.size(0), F_s.size(1), -1)
-        F_t = F_t.view(F_t.size(0), F_t.size(1), -1)
-        x = self.temporal_pool(x)
-        x = self.spatial_pool(x)
-        x = x.view(x.size(0), -1)
-        b, _ = x.shape
-        score_1 = self.base_cls(x)
-        label_embedding = x.repeat(1, self.num_classes)
-        label_embedding = label_embedding.view(b, self.num_classes, -1)
-        label_embedding = label_embedding * self.base_cls.weight
-
-        pos_s = self.pos_enc_module(F_s.permute(0,2,1))
-        pos_s = pos_s.permute(0,2,1)
-        pos_t = self.pos_enc_module(F_t.permute(0,2,1))
-        pos_t = pos_t.permute(0,2,1)
-
-        hs = self.transformer_s(F_s, label_embedding, pos_s)[0]
-        ht = self.transformer_t(F_t, label_embedding, pos_t)[0]
-        h = torch.cat([hs, ht], dim=3)
-        score_2 = self.fc_cls(h[-1])
-        mask_mat = self.mask_mat.detach()
-        score_2 = (score_2 * mask_mat).sum(-1)
-
-        cls_score = (score_1 + score_2) / 2
-
+        cls_score = self.fc_cls(x)
         # We do not predict bbox, so return None
         return cls_score, None
 
@@ -243,8 +175,7 @@ class BBoxHeadAVA(nn.Module):
              label_weights,
              bbox_targets=None,
              bbox_weights=None,
-             reduce=True,
-             **kwargs):
+             reduce=True):
 
         losses = dict()
         if cls_score is not None:
@@ -254,17 +185,12 @@ class BBoxHeadAVA(nn.Module):
             cls_score = cls_score[pos_inds, 1:]
             labels = labels[pos_inds]
 
-            """ bce_loss = F.binary_cross_entropy_with_logits
+            bce_loss = F.binary_cross_entropy_with_logits
 
             loss = bce_loss(cls_score, labels, reduction='none')
-            
             pt = torch.exp(-loss)
             F_loss = self.focal_alpha * (1 - pt)**self.focal_gamma * loss
-            losses['loss_action_cls'] = torch.mean(F_loss) """
-            losses['loss_action_cls'] = self.loss_cls(cls_score, labels, **kwargs)
-
-            # loss = self.loss_cls(cls_score, labels)
-            # losses['loss_action_cls'] = torch.mean(loss)
+            losses['loss_action_cls'] = torch.mean(F_loss)
 
             recall_thr, prec_thr, recall_k, prec_k = self.multi_label_accuracy(
                 cls_score, labels, thr=0.5)

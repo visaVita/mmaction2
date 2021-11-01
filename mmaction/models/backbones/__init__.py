@@ -1,3 +1,4 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 from .c3d import C3D
 from .mobilenet_v2 import MobileNetV2
 from .mobilenet_v2_tsm import MobileNetV2TSM
@@ -17,11 +18,12 @@ from .x3d import X3D
 from .swin_transformer import SwinTransformer3D
 from .CoT import SlowFast_CoT
 from .movinet import MoViNet
+from .stgcn import STGCN
 
 
 __all__ = [
     'C3D', 'ResNet', 'ResNet3d', 'ResNet3d_CoT', 'ResNetTSM', 'ResNet2Plus1d',
     'ResNet3dSlowFast', 'ResNet3dSlowOnly', 'ResNet3dCSN', 'ResNetTIN', 'X3D',
     'ResNetAudio', 'ResNet3dLayer', 'ResNet3dLayer_CoT', 'MobileNetV2TSM', 'MobileNetV2', 'TANet',
-    'TimeSformer', 'SlowFast_CoT', 'SwinTransformer3D', 'MoViNet'
+    'TimeSformer', 'SlowFast_CoT', 'SwinTransformer3D', 'MoViNet', 'STGCN'
 ]

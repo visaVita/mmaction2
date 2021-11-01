@@ -17,8 +17,8 @@
 
 # Extract frames from videos.
 
-IN_DATA_DIR="/media/disk2/whj/AVA/videos_train_15min"
-OUT_DATA_DIR="/media/disk2/whj/AVA/frames_train"
+IN_DATA_DIR="../../../data/ava/videos_15min"
+OUT_DATA_DIR="../../../data/ava/rawframes"
 
 if [[ ! -d "${OUT_DATA_DIR}" ]]; then
   echo "${OUT_DATA_DIR} doesn't exist. Creating it.";

@@ -69,7 +69,7 @@ ann_file_val = f'{anno_root}/ava_val_v2.2.csv'
 exclude_file_train = f'{anno_root}/ava_train_excluded_timestamps_v2.2.csv'
 exclude_file_val = f'{anno_root}/ava_val_excluded_timestamps_v2.2.csv'
 
-label_file = f'{anno_root}/ava_action_list_v2.2.pbtxt'
+label_file = f'{anno_root}/ava_action_list_v2.2_for_activitynet_2019.pbtxt'
 
 proposal_file_train = (f'{anno_root}/ava_dense_proposals_train.FAIR.'
                        'recall_93.9.pkl')
@@ -116,8 +116,8 @@ val_pipeline = [
 ]
 
 data = dict(
-    videos_per_gpu=12,
-    workers_per_gpu=4,
+    videos_per_gpu=6,
+    workers_per_gpu=2,
     val_dataloader=dict(videos_per_gpu=1),
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(
@@ -140,7 +140,7 @@ data = dict(
         data_prefix=data_root))
 data['test'] = data['val']
 # optimizer
-optimizer = dict(type='SGD', lr=0.0375, momentum=0.9, weight_decay=0.00001)
+optimizer = dict(type='SGD', lr=0.075, momentum=0.9, weight_decay=0.00001)
 # this lr is used for 8 gpus
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy

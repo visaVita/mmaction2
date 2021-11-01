@@ -6,14 +6,15 @@ MMAction2 提供的所有配置文件都放置在 `$MMAction2/configs` 文件夹
 
 <!-- TOC -->
 
-- [通过命令行参数修改配置信息](#通过命令行参数修改配置信息)
-- [配置文件结构](#配置文件结构)
-- [配置文件命名规则](#配置文件命名规则)
-  - [时序动作检测的配置文件系统](#时序动作检测的配置文件系统)
-  - [动作识别的配置文件系统](#动作识别的配置文件系统)
-  - [时空动作检测的配置文件系统](#时空动作检测的配置文件系统)
-- [常见问题](#常见问题)
-  - [配置文件中的中间变量](#配置文件中的中间变量)
+- [教程 1：如何编写配置文件](#教程-1如何编写配置文件)
+  - [通过命令行参数修改配置信息](#通过命令行参数修改配置信息)
+  - [配置文件结构](#配置文件结构)
+  - [配置文件命名规则](#配置文件命名规则)
+    - [时序动作检测的配置文件系统](#时序动作检测的配置文件系统)
+    - [动作识别的配置文件系统](#动作识别的配置文件系统)
+    - [时空动作检测的配置文件系统](#时空动作检测的配置文件系统)
+  - [常见问题](#常见问题)
+    - [配置文件中的中间变量](#配置文件中的中间变量)
 
 <!-- TOC -->
 
@@ -368,7 +369,7 @@ MMAction2 将模块化设计整合到配置文件系统中，以便执行各类�
     ]
     data = dict(  # 数据的配置
         videos_per_gpu=32,  # 单个 GPU 的批大小
-        workers_per_gpu=4,  # 单个 GPU 的 dataloader 的进程
+        workers_per_gpu=2,  # 单个 GPU 的 dataloader 的进程
         train_dataloader=dict(  # 训练过程 dataloader 的额外设置
             drop_last=True),  # 在训练过程中是否丢弃最后一个批次
         val_dataloader=dict(  # 验证过程 dataloader 的额外设置
@@ -587,7 +588,7 @@ MMAction2 将模块化设计整合到配置文件系统中，以便于执行各�
 
     data = dict(  # 数据的配置
         videos_per_gpu=16,  # 单个 GPU 的批大小
-        workers_per_gpu=4,  # 单个 GPU 的 dataloader 的进程
+        workers_per_gpu=2,  # 单个 GPU 的 dataloader 的进程
         val_dataloader=dict(   # 验证过程 dataloader 的额外设置
             videos_per_gpu=1),  # 单个 GPU 的批大小
         train=dict(   # 训练数据集的设置
@@ -729,7 +730,7 @@ test_pipeline = [
 
 data = dict(
     videos_per_gpu=8,
-    workers_per_gpu=4,
+    workers_per_gpu=2,
     train=dict(
         type=dataset_type,
         ann_file=ann_file_train,

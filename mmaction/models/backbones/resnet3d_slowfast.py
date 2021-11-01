@@ -1,3 +1,4 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import warnings
 
 import torch
@@ -42,7 +43,6 @@ class ResNet3dPathway(ResNet3d):
                  channel_ratio=8,
                  fusion_kernel=5,
                  **kwargs):
-        
         self.lateral = lateral
         self.speed_ratio = speed_ratio
         self.channel_ratio = channel_ratio
@@ -219,7 +219,7 @@ class ResNet3dPathway(ResNet3d):
 
         Args:
             logger (logging.Logger): The logger used to print
-                debugging infomation.
+                debugging information.
         """
 
         state_dict_r2d = _load_checkpoint(self.pretrained)
@@ -479,7 +479,7 @@ class ResNet3dSlowFast(nn.Module):
             # Directly load 3D model.
             load_checkpoint(self, self.pretrained, strict=True, logger=logger)
         elif self.pretrained is None:
-            # Init two branch seperately.
+            # Init two branch separately.
             self.fast_path.init_weights()
             self.slow_path.init_weights()
         else:
@@ -498,16 +498,15 @@ class ResNet3dSlowFast(nn.Module):
         x_slow = nn.functional.interpolate(
             x,
             mode='nearest',
-            scale_factor=(1.0 / self.resample_rate, 1.0, 1.0),
-            recompute_scale_factor=True)
+            scale_factor=(1.0 / self.resample_rate, 1.0, 1.0))
         x_slow = self.slow_path.conv1(x_slow)
         x_slow = self.slow_path.maxpool(x_slow)
 
         x_fast = nn.functional.interpolate(
             x,
             mode='nearest',
-            scale_factor=(1.0 / (self.resample_rate // self.speed_ratio), 1.0, 1.0),
-            recompute_scale_factor=True)
+            scale_factor=(1.0 / (self.resample_rate // self.speed_ratio), 1.0,
+                          1.0))
         x_fast = self.fast_path.conv1(x_fast)
         x_fast = self.fast_path.maxpool(x_fast)
 

@@ -1,7 +1,9 @@
+# Copyright (c) OpenMMLab. All rights reserved.
 import warnings
-
 import torch
 import torch.nn.functional as F
+
+
 import torch.nn as nn
 import torch.utils.checkpoint as cp
 from mmcv.cnn import (ConvModule, NonLocal3d, build_activation_layer,
@@ -810,7 +812,7 @@ class ResNet3d(nn.Module):
 
         Args:
             logger (logging.Logger): The logger used to print
-                debugging infomation.
+                debugging information.
         """
 
         state_dict_r2d = _load_checkpoint(self.pretrained)
@@ -965,7 +967,6 @@ class ResNet3d(nn.Module):
         for i, layer_name in enumerate(self.res_layers):
             res_layer = getattr(self, layer_name)
             x = res_layer(x)
-            # print(x.shape)
             if i == 0 and self.with_pool2:
                 x = self.pool2(x)
             if i in self.out_indices:

@@ -2,7 +2,7 @@
 
 set -e
 
-VERSION=${VERSION:-"2.2"}
+VERSION=${VERSION:-"2.1"}
 DATA_DIR="../../../data/ava/annotations"
 
 if [[ ! -d "${DATA_DIR}" ]]; then
