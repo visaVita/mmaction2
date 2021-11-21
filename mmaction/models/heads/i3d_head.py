@@ -6,7 +6,7 @@ from mmcv.cnn import normal_init
 from ..builder import HEADS
 from .base import BaseHead
 from ...core import top_k_accuracy
-from ..common import PositionalEnconding, Transformer
+from ..common import PositionalEnconding, tranST, Transformer
 
 
 @HEADS.register_module()
@@ -32,10 +32,10 @@ class I3DHead(BaseHead):
                  spatial_type='avg',
                  dropout_ratio=0.5,
                  init_std=0.01,
-                 transformer=False,
+                 Transformer=False,
                  **kwargs):
         super().__init__(num_classes, in_channels, loss_cls, **kwargs)
-        self.transformer = transformer
+        self.transformer = Transformer
         self.spatial_type = spatial_type
         self.dropout_ratio = dropout_ratio
         self.init_std = init_std

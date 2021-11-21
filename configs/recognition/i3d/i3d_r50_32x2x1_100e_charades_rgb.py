@@ -107,12 +107,6 @@ data = dict(
 evaluation = dict(
     interval=1, metrics=['mean_average_precision'])
 
-# optimizer = dict(type='AdamW',
-#                  lr=1e-4,
-#                  betas=(0.9, 0.9999),
-#                  weight_decay=2e-2,
-#                  constructor='freeze_backbone_constructor',
-#                  paramwise_cfg = dict(lrp=0.1))
 
 optimizer = dict(
     type='SGD',
@@ -128,26 +122,6 @@ lr_config = dict(policy='step',
                  warmup_iters=4)
 
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
-# learning policy
-# lr_config = dict(policy='step', step=[20, 35])
-
-# lr_config = dict(
-#     policy='CosineRestart',
-#     periods=[20, 40, 60],
-#     restart_weights=[1, 1, 1],
-#     min_lr = 0,
-#     warmup='linear',
-#     warmup_by_epoch=True,
-#     warmup_iters=4
-# )
-
-# lr_config = dict(
-#     policy='CosineAnnealing',
-#     min_lr=0,
-#     warmup='linear',
-#     warmup_by_epoch=True,
-#     warmup_iters=2
-# )
 
 total_epochs = 50
 

@@ -112,8 +112,10 @@ venv.bak/
 *.pkl.json
 *.log.json
 benchlist.txt
+work_dirs
 work_dirs/
 model_zoo/
+model_zoo
 run.txt
 
 # Pytorch

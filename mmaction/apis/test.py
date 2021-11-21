@@ -44,6 +44,8 @@ if not from_mmcv:
         for data in data_loader:
             with torch.no_grad():
                 result = model(return_loss=False, **data)
+                if isinstance(result, tuple):
+                    result = result[0]
             results.extend(result)
 
             # use the first key as main key to calculate the batch size
@@ -82,6 +84,8 @@ if not from_mmcv:
         for data in data_loader:
             with torch.no_grad():
                 result = model(return_loss=False, **data)
+                if isinstance(result, tuple):
+                    result = result[0]
             results.extend(result)
 
             if rank == 0:

@@ -6,9 +6,10 @@ from .tam import TAM
 from .transformer import (DividedSpatialAttentionWithNorm,
                           DividedTemporalAttentionWithNorm, FFNWithNorm, 
                           PositionalEnconding, Transformer)
+from .tranST import TranST
 
 __all__ = [
     'Conv2plus1d', 'ConvAudio', 'LFB', 'TAM',
     'DividedSpatialAttentionWithNorm', 'DividedTemporalAttentionWithNorm',
-    'FFNWithNorm', 'PositionalEnconding', 'Transformer'
+    'FFNWithNorm', 'PositionalEnconding', 'Transformer', 'TranST'
 ]

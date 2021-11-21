@@ -356,10 +356,10 @@ class Transformer(nn.Module):
             memory = src
 
         tgt = torch.zeros_like(query_embed)
-        hs, sim_mat_2 = self.decoder(tgt, memory, memory_key_padding_mask=mask,
+        hs = self.decoder(tgt, memory, memory_key_padding_mask=mask,
                           pos=pos_embed, query_pos=query_embed)
         
-        return hs.transpose(1, 2), memory[:n_cls].permute(1, 2, 0).view(bs, c, n_cls), sim_mat_2
+        return hs.transpose(1, 2), memory[:n_cls].permute(1, 2, 0).view(bs, c, n_cls)
 
 
 class TransformerEncoder(nn.Module):
@@ -407,7 +407,7 @@ class TransformerDecoder(nn.Module):
         intermediate = []
 
         for layer in self.layers:
-            output, _ , sim_mat_2 = layer(output, memory, tgt_mask=tgt_mask,
+            output, _ , _ = layer(output, memory, tgt_mask=tgt_mask,
                            memory_mask=memory_mask,
                            tgt_key_padding_mask=tgt_key_padding_mask,
                            memory_key_padding_mask=memory_key_padding_mask,
@@ -424,7 +424,7 @@ class TransformerDecoder(nn.Module):
         if self.return_intermediate:
             return torch.stack(intermediate)
 
-        return output.unsqueeze(0), sim_mat_2
+        return output.unsqueeze(0)
 
 
 class TransformerEncoderLayer(nn.Module):
@@ -458,7 +458,7 @@ class TransformerEncoderLayer(nn.Module):
                      src_key_padding_mask: Optional[Tensor] = None,
                      pos: Optional[Tensor] = None):
         q = k = self.with_pos_embed(src, pos)
-        src2, corr = self.self_attn(q, k, value=src, attn_mask=src_mask,
+        src2= self.self_attn(q, k, value=src, attn_mask=src_mask,
                               key_padding_mask=src_key_padding_mask)
         
 
@@ -550,9 +550,9 @@ class TransformerDecoderLayer(nn.Module):
         tgt = tgt + self.dropout3(tgt2)
         tgt = self.norm3(tgt)
         if not self.omit_selfattn:
-            return tgt, sim_mat_1, sim_mat_2
+            return tgt
         else:
-            return tgt, sim_mat_2
+            return tgt
 
     def forward_pre(self, tgt, memory,
                     tgt_mask: Optional[Tensor] = None,
@@ -606,7 +606,7 @@ def build_transformer(args):
         num_decoder_layers=args.dec_layers,
         normalize_before=args.pre_norm,
         return_intermediate_dec=False,
-        rm_self_attn_dec=not args.keep_other_self_attn_dec, 
+        rm_self_attn_dec=not args.keep_other_self_attn_dec,
         rm_first_self_attn=not args.keep_first_self_attn_dec,
     )
 

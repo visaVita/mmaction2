@@ -210,17 +210,5 @@ class SlowFastHead(BaseHead):
             mask_mat = self.mask_mat.detach()
             score_2 = (score_2 * mask_mat).sum(-1)
             cls_score = self.delta*score_2 + self.theta*score_fast + self.gamma*score_slow
-            # cls_score =score_2
-            """
-            import time
-            att_mat = dict(
-                cc_s  = sim_mat_cc_s.detach().cpu().numpy(),
-                cc_t  = sim_mat_cc_t.detach().cpu().numpy(),
-                cs    = sim_mat_cs.detach().cpu().numpy(),
-                ct    = sim_mat_ct.detach().cpu().numpy(),
-                score = torch.sigmoid(cls_score).detach().cpu().numpy()
-            )
-            time = time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime())
-            with open("/home/ckai/project/mmaction2/work_dirs/slowfast_cot_r50_8x8x1_40e_charades_rgb/att_mat/" + time + ".npy", "wb") as f:
-                np.save(f, att_mat) """
+
         return cls_score
