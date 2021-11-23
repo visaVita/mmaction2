@@ -128,7 +128,7 @@ if __name__ == '__main__':
 
     def parse_line(line):
         tags, youtube_id, start, end = line
-        start, end = int(float(start) * 10), int(float(end) * 10)
+        start, end = int(float(start)), int(float(end))
         newname = f'{youtube_id}_{start:06d}_{end:06d}'
         tags = tags.split('|')
         all_tags = {}
