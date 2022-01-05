@@ -211,4 +211,7 @@ class SlowFastHead(BaseHead):
             score_2 = (score_2 * mask_mat).sum(-1)
             cls_score = self.delta*score_2 + self.theta*score_fast + self.gamma*score_slow
 
+        if self.multi_class:
+            cls_score = torch.sigmoid(cls_score)
+        
         return cls_score

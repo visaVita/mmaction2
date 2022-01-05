@@ -58,6 +58,7 @@ ann_file_val = 'data/charades/annotations/charades_val_list_rawframes.csv'
 ann_file_test = 'data/charades/annotations/charades_val_list_rawframes.csv'
 img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
+    # mean=[114.75, 114.75, 114.75], std=[57.375, 57.375, 57.375], to_bgr=False)
 train_pipeline = [
     dict(
         type='SampleCharadesFrames',
@@ -136,20 +137,15 @@ data = dict(
         test_mode=True))
 
 evaluation = dict(
-    interval=6, metrics=['mean_average_precision'])
+    interval=5, metrics=['mean_average_precision'])
 
 # optimizer
 optimizer = dict(
     type='SGD',
-    lr=0.15,
+    lr=0.0375,
     momentum=0.9,
     weight_decay=0.0001,
-    # constructor='transformer_mlc_optimizer_constructor',
-    # paramwise_cfg = dict(lrp=0.1),
-    # paramwise_cfg = dict(paramwise_cfg = dict(custom_keys={
-    #                 'backbone': dict(lr_mult=1., decay_mult=1.),
-    #                 'cls_head': dict(lr_mult=0.1, decay_mult=10.),
-    #                 }),)
+    paramwise_cfg = dict(custom_keys={'bn': dict(decay_mult=0.)})
 )
 # optimizer = dict(type='AdamW',
 #                  lr=4e-5,
@@ -171,7 +167,8 @@ lr_config = dict(
     warmup='linear',
     warmup_by_epoch=True,
     warmup_iters=4,
-    min_lr=1e-4,
+    warmup_ratio=0.001,
+    min_lr=0,
 )
 
 """ lr_config = dict(
@@ -181,31 +178,22 @@ lr_config = dict(
     warmup_by_epoch=True,
     warmup_iters=4) """
 
-# lr_config = dict(
-#     policy='CosineRestart',
-#     periods=[20, 40, 60],
-#     restart_weights=[1, 1, 1],
-#     min_lr = 0,
-#     warmup='linear',
-#     warmup_by_epoch=True,
-#     warmup_iters=4
-# )
 # precise_bn
-precise_bn = dict(num_iters=200, interval=6)
+precise_bn = dict(num_iters=200, interval=1)
 
 total_epochs = 57
 
 # runtime settings
-checkpoint_config = dict(interval=6)
+checkpoint_config = dict(interval=5)
 workflow = [('train', 1)]
 log_config = dict(
-    interval=20,
+    interval=10,
     hooks=[
         dict(type='TextLoggerHook'),
         # dict(type='TensorboardLoggerHook'),
     ])
 log_level = 'INFO'
-work_dir = './work_dirs/slowfast_cot_r50_16x8x1_prebn_charades_rgb'
+work_dir = './work_dirs/slowfast_cot_r50_16x8x1_charades_rgb'
 
 load_from = ('https://download.openmmlab.com/mmaction/recognition/'
                  'slowfast/slowfast_r50_8x8x1_256e_kinetics400_rgb/'

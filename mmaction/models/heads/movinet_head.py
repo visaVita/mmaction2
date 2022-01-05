@@ -527,7 +527,7 @@ class MoViNetHead(BaseHead):
         x = x.view(x.size(0), -1)
         b, _ = x.shape
         score_1 = self.base_cls(x)
-        label_embedding = x.repeat(1, self.num_classes)
+        label_embedding = x.repeat(1, self.num_classes) 
         label_embedding = label_embedding.view(b, self.num_classes, -1)
         label_embedding = label_embedding * self.base_cls.weight
 

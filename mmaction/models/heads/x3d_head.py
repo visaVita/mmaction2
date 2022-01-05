@@ -28,8 +28,9 @@ class X3DHead(BaseHead):
                  spatial_type='avg',
                  dropout_ratio=0.5,
                  init_std=0.01,
-                 fc1_bias=False):
-        super().__init__(num_classes, in_channels, loss_cls)
+                 fc1_bias=False,
+                 **kwargs):
+        super().__init__(num_classes, in_channels, loss_cls, **kwargs)
 
         self.spatial_type = spatial_type
         self.dropout_ratio = dropout_ratio

@@ -1,35 +1,48 @@
-model=dict(
+model = dict(
     type='Recognizer3D',
     backbone=dict(
         type='SwinTransformer3D',
-        patch_size=(2,4,4),
+        patch_size=(2, 4, 4),
         depths=[2, 2, 18, 2],
         embed_dim=128,
         num_heads=[4, 8, 16, 32],
-        window_size=(8,7,7),
-        mlp_ratio=4.,
+        window_size=(8, 7, 7),
+        mlp_ratio=4.0,
         qkv_bias=True,
         qk_scale=None,
-        drop_rate=0.,
-        attn_drop_rate=0.,
+        drop_rate=0.0,
+        attn_drop_rate=0.0,
         drop_path_rate=0.2,
         patch_norm=True),
     cls_head=dict(
-        type='I3DHead',
+        type='TranSTHead',
         in_channels=1024,
-        num_classes=157,
         dropout_ratio=0.5,
-        topk=(3),
+        num_classes=157,
         multi_class=True,
-        loss_cls=dict(type='AsymmetricLossOptimized', gamma_neg=4, gamma_pos=1)
-    ),
-    # train_cfg=dict(blending=dict(type='LabelSmoothing', num_classes=157, smoothing=0.1)),
-    test_cfg=dict(
-        maximize_clips='score',
-        max_testing_views=5
-    ))
-
-# dataset settings
+        topk=(1, 3),
+        tranST=dict(
+            hidden_dim=512,
+            enc_layer_num=1,
+            stld_layer_num=2,
+            n_head=4,
+            dim_feedforward=2048,
+            dropout=0.,
+            drop_path_rate=0.2,
+            normalize_before=False,
+            fusion=False,
+            rm_first_self_attn=False,
+            rm_res_self_attn=True,
+            activation='relu',
+            return_intermediate_dec=False,
+            t_only=False),
+        loss_cls=dict(
+            type='AsymmetricLossOptimized',
+            gamma_neg=2,
+            gamma_pos=0,
+            disable_torch_grad_focal_loss=True
+        )),
+    test_cfg=dict(maximize_clips='score', max_testing_views=4))
 dataset_type = 'CharadesDataset'
 data_root = 'data/charades/Charades_rgb'
 data_root_val = 'data/charades/Charades_rgb'
@@ -43,7 +56,7 @@ img_norm_cfg = dict(
 train_pipeline = [
     dict(
         type='SampleCharadesFrames',
-        clip_len=64,
+        clip_len=32,
         frame_interval=2,
         num_clips=1),
     dict(type='RawFrameDecode'),
@@ -59,7 +72,7 @@ train_pipeline = [
 val_pipeline = [
     dict(
         type='SampleCharadesFrames',
-        clip_len=64,
+        clip_len=32,
         frame_interval=2,
         num_clips=1,
         test_mode=True),
@@ -75,7 +88,7 @@ val_pipeline = [
 test_pipeline = [
     dict(
         type='SampleCharadesFrames',
-        clip_len=64,
+        clip_len=32,
         frame_interval=2,
         num_clips=10,
         test_mode=True),
@@ -114,54 +127,56 @@ data = dict(
         ann_file=ann_file_test,
         data_prefix=data_root_val,
         pipeline=test_pipeline))
-evaluation = dict(
-    interval=1, metrics=['mean_average_precision'])
+evaluation = dict(interval=1, metrics=['mean_average_precision'])
+optimizer = dict(
+    type='AdamW',
+    lr=2e-04,
+    betas=(0.9, 0.999),
+    weight_decay=0.01,
+    constructor='freeze_backbone_constructor',
+    paramwise_cfg=dict(
+        custom_keys=dict(
+            absolute_pos_embed=dict(decay_mult=0.0),
+            relative_position_bias_table=dict(decay_mult=0.0),
+            norm=dict(decay_mult=0.0),
+            backbone=dict(lr_mult=0.1))))
 
-# optimizer
+# optimizer_config = dict(grad_clip=None)
 
-optimizer = dict(type='AdamW', lr=3e-4, betas=(0.9, 0.999), weight_decay=0.05,
-                 paramwise_cfg=dict(custom_keys={'absolute_pos_embed': dict(decay_mult=0.),
-                                                 'relative_position_bias_table': dict(decay_mult=0.),
-                                                 'norm': dict(decay_mult=0.),
-                                                 'backbone': dict(lr_mult=0.1)}))
+# do not use mmdet version fp16
+fp16 = None
+optimizer_config = dict(
+    type="DistOptimizerHook",
+    update_interval=2,
+    grad_clip=None,
+    coalesce=True,
+    bucket_size_mb=-1,
+    use_fp16=True,
+)
 
 lr_config = dict(
     policy='CosineAnnealing',
     min_lr=0,
     warmup='linear',
     warmup_by_epoch=True,
-    warmup_iters=2.5
+    warmup_iters=2.5,
+    warmup_ratio=0.001
 )
 
-total_epochs = 30
-
-# runtime settings
-work_dir = './work_dirs/k600_swin_base_22k_patch244_window877_charades'
+total_epochs = 40
+work_dir = './work_dirs/k600_swin_base_22k_patch244_window877_freeze_backbone_charades'
 find_unused_parameters = False
-checkpoint_config = dict(interval=1)
+checkpoint_config = dict(interval=5)
 log_config = dict(
-    interval=20,
+    interval=10,
     hooks=[
         dict(type='TextLoggerHook'),
-        # dict(type='TensorboardLoggerHook'),
+        dict(type='TensorboardLoggerHook'),
     ])
-# do not use mmdet version fp16
-fp16 = None
-optimizer_config = dict(
-    type="DistOptimizerHook",
-    update_interval=8,
-    grad_clip=None,
-    coalesce=True,
-    bucket_size_mb=-1,
-    use_fp16=True,
-)
-# runtime settings
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-
-load_from = ('https://github.com/SwinTransformer/storage/releases/download/v1.0.4/swin_base_patch244_window877_kinetics600_22k.pth')
-# load_from = ('work_dirs/k600_swin_base_22k_patch244_window877_charades/map4816.pth')
-# load_from = None
+load_from = 'work_dirs/k600_swin_base_22k_patch244_window877_charades/map4881_32f.pth'
 resume_from = None
 workflow = [('train', 1)]
-# custom_hooks=[dict(type='EMAHook', momentum=0.0003)]
+omnisource = False
+module_hooks = []

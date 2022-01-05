@@ -1,4 +1,5 @@
 import torch
+from torch._C import set_flush_denormal
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
@@ -18,23 +19,24 @@ class TranST(nn.Module):
                  d_temporal_branch=512,
                  d_spatial_branch=512,
                  n_head=8,
-                 fusion=None,
+                 fusion=False,
                  num_encoder_layers=6,
                  num_decoder_layers=6,
                  dim_feedforward=2048,
                  dropout=0.1,
+                 drop_path_rate=0.1,
                  activation="relu",
                  normalize_before=False,
                  return_intermediate_dec=False,
-                 rm_self_attn_dec=True,
-                 rm_first_self_attn=False, 
+                 rm_first_self_attn=False,
+                 rm_res_self_attn=False,
                  t_only = False
-                ):
+    ):
         super().__init__()
         self.t_only = t_only
         self.num_encoder_layers = num_encoder_layers
-        self.rm_self_attn_dec = rm_self_attn_dec
         self.rm_first_self_attn = rm_first_self_attn
+        self.rm_res_self_attn = rm_res_self_attn
         if num_encoder_layers > 0:
             if not t_only:
                 spatial_encoder_layer = TransformerEncoderLayer(d_spatial_branch, n_head, dim_feedforward,
@@ -57,22 +59,23 @@ class TranST(nn.Module):
                                                         dropout, activation, normalize_before)
         temporal_decoder_norm = nn.LayerNorm(d_temporal_branch)
         
-
         self.STLD = STLD(spatial_decoder_layer, temporal_decoder_layer, num_decoder_layers,
                          spatial_decoder_norm, temporal_decoder_norm,
                          d_spatial_branch=d_spatial_branch, d_temporal_branch=d_temporal_branch,
                          return_intermediate=return_intermediate_dec, fusion=fusion, temporal_only=t_only
         )
+        self.drop_path = DropPath(drop_path_rate) if drop_path_rate > 0. else nn.Identity()
+        self.rm_self_attn_dec_func()
 
     def rm_self_attn_dec_func(self):
         total_modifie_layer_num = 0
         rm_list = []
 
         layer_stack = self.STLD.temporal_layers if self.t_only else zip(self.STLD.spatial_layers, self.STLD.temporal_layers)
-        for idx, layer_s, layer_t in enumerate(layer_stack):
+        for idx, (layer_s, layer_t) in enumerate(layer_stack):
             if idx == 0 and not self.rm_first_self_attn:
                 continue
-            if idx != 0 and not self.rm_self_attn_dec:
+            if idx != 0 and not self.rm_res_self_attn:
                 continue
             if not self.t_only:
                 layer_s.omit_selfattn = True
@@ -105,7 +108,7 @@ class TranST(nn.Module):
         src_t = src_t.permute(2, 0, 1)
         pos_t = pos_t.permute(2, 0, 1)
         query_embed = query_embed.transpose(0, 1)
-        #query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
+        # query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
         if mask is not None:
             mask = mask.flatten(1)
 
@@ -126,6 +129,8 @@ class TranST(nn.Module):
                             query_pos_s=query_embed,
                             query_pos_t=query_embed
             )
+            hs = self.drop_path(hs)
+            ht = self.drop_path(ht)
             return hs.transpose(1, 2), ht.transpose(1, 2)
         else:
             ht = self.STLD( tgt=tgt,
@@ -134,8 +139,8 @@ class TranST(nn.Module):
                             query_pos_s=None,
                             query_pos_t=query_embed
             )
+            ht = self.drop_path(ht)
             return ht.transpose(1, 2)
-
 
 class TransformerEncoder(nn.Module):
 
@@ -161,7 +166,7 @@ class TransformerEncoder(nn.Module):
         return output
 
 
-#  目前应该有两种fusion方案，一种是add, 一种是concat+Conv, 
+#  目前应该有两种fusion方案，一种是add, 一种是concat+Conv,
 #  目前先不考虑slowfast，太特殊
 class STLD(nn.Module):
     def __init__(self, spatial_decoder_layer, temporal_decoder_layer,
@@ -169,7 +174,7 @@ class STLD(nn.Module):
                  return_intermediate=False,
                  d_temporal_branch=512,
                  d_spatial_branch=512,
-                 fusion = None,
+                 fusion = False,
                  temporal_only = False
                 ):
         super().__init__()
@@ -179,14 +184,6 @@ class STLD(nn.Module):
             self.spatial_layers = _get_clones(spatial_decoder_layer, num_layers)
             self.spatial_norm = spatial_norm
             self.d_spatial = d_spatial_branch
-            if fusion==None:
-                pass
-            elif self.fusion=='same':
-                # not use slowfast as backbone
-                self.fusion_block = nn.Conv1d(d_spatial_branch+d_temporal_branch, d_temporal_branch, 1)
-            elif self.fusion=='t2s':
-                self.fusion_block = nn.Conv1d(d_temporal_branch, d_spatial_branch//2, 1)
-                self.squeeze_block = nn.Conv1d(d_spatial_branch, d_spatial_branch//2, 1)
         self.temporal_layers = _get_clones(temporal_decoder_layer, num_layers)
         self.num_layers = num_layers
         
@@ -259,21 +256,11 @@ class STLD(nn.Module):
                                         tgt_key_padding_mask=tgt_key_padding_mask_t,
                                         memory_key_padding_mask=memory_key_padding_mask_t,
                                         pos=pos_t, query_pos=query_pos_t)
-                if self.fusion is not None:
+                if self.fusion:
                     if not (current_layer == 1 or current_layer == layer_num):
-                        if self.fusion=='same':
-                            # do not match slowfast backbone
-                            output = torch.cat([output_s, output_t], dim=2)
-                            output = output.transpose(1, 2)
-                            output = self.fusion(output)
-                            output_s = output_t = output = output.transpose(1, 2)
-                        elif self.fusion=='t2s':
-                            output_s = output_s.transpose(1, 2)
-                            output_t = output_t.transpose(1, 2)
-                            output_s = self.squeeze_block(output_s)
-                            output_s = torch.cat([output_s, self.fusion_block(output_t)], dim=1)
-                            output_s = output_s.transpose(1, 2)
-                            output_t = output_t.transpose(1, 2)
+                        tmp = output_s
+                        output_s = output_t
+                        output_t = tmp
             
                 if self.return_intermediate:
                     intermediate_t.append(self.norm(output_t))
@@ -308,6 +295,7 @@ class TransformerEncoderLayer(nn.Module):
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.dropout1 = nn.Dropout(dropout)
+        # self.dropout1 = nn.Identity()
         self.dropout2 = nn.Dropout(dropout)
 
         self.activation = _get_activation_fn(activation)
@@ -377,6 +365,8 @@ class TransformerDecoderLayer(nn.Module):
         self.norm3 = nn.LayerNorm(d_model)
         self.dropout1 = nn.Dropout(dropout)
         self.dropout2 = nn.Dropout(dropout)
+        # self.dropout1 = nn.Identity()
+        # self.dropout2 = nn.Identity()
         self.dropout3 = nn.Dropout(dropout)
 
         self.activation = _get_activation_fn(activation)
@@ -473,3 +463,34 @@ def _get_activation_fn(activation):
     if activation == "hardswish":
         return F.hardswish
     raise RuntimeError(F"activation should be relu/gelu, not {activation}.")
+
+
+def drop_path(x, drop_prob: float = 0., training: bool = False):
+    """Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks).
+
+    This is the same as the DropConnect impl I created for EfficientNet, etc networks, however,
+    the original name is misleading as 'Drop Connect' is a different form of dropout in a separate paper...
+    See discussion: https://github.com/tensorflow/tpu/issues/494#issuecomment-532968956 ... I've opted for
+    changing the layer and argument names to 'drop path' rather than mix DropConnect as a layer name and use
+    'survival rate' as the argument.
+
+    """
+    if drop_prob == 0. or not training:
+        return x
+    keep_prob = 1 - drop_prob
+    shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # work with diff dim tensors, not just 2D ConvNets
+    random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
+    random_tensor.floor_()  # binarize
+    output = x.div(keep_prob) * random_tensor
+    return output
+
+
+class DropPath(nn.Module):
+    """Drop paths (Stochastic Depth) per sample  (when applied in main path of residual blocks).
+    """
+    def __init__(self, drop_prob=None):
+        super(DropPath, self).__init__()
+        self.drop_prob = drop_prob
+
+    def forward(self, x):
+        return drop_path(x, self.drop_prob, self.training)

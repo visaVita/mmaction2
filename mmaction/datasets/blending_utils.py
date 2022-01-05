@@ -20,6 +20,7 @@ class BaseMiniBatchBlending(metaclass=ABCMeta):
         self.num_classes = num_classes
         self.off_value = smoothing / self.num_classes
         self.on_value = 1. - smoothing + self.off_value
+        self.label_smooth_eps = smoothing
 
     @abstractmethod
     def do_blending(self, imgs, label, **kwargs):
@@ -53,8 +54,12 @@ class BaseMiniBatchBlending(metaclass=ABCMeta):
                 the shape of (B, 1, num_classes) and all elements are in range
                 [0, 1].
         """
-        one_hot_label = one_hot(label, num_classes=self.num_classes, on_value=self.on_value, off_value=self.off_value, device=label.device)
-
+        if label.size(1) == 1:
+            one_hot_label = one_hot(label, num_classes=self.num_classes, on_value=self.on_value, off_value=self.off_value, device=label.device)
+        else:
+            label = ((1 - self.label_smooth_eps) * label +
+                      self.label_smooth_eps / self.num_classes)
+            one_hot_label = label
         mixed_imgs, mixed_label = self.do_blending(imgs, one_hot_label,
                                                    **kwargs)
 
@@ -84,11 +89,13 @@ class MixupBlending(BaseMiniBatchBlending):
 
         lam = self.beta.sample()
         batch_size = imgs.size(0)
+        label = label.view(batch_size, -1, label.size(1))
         rand_index = torch.randperm(batch_size)
-
+        # print("lam", lam, "label", label.size())
         mixed_imgs = lam * imgs + (1 - lam) * imgs[rand_index, :]
+        # print("mix_img", mixed_imgs.size())
         mixed_label = lam * label + (1 - lam) * label[rand_index, :]
-
+        mixed_label = mixed_label.view(-1, mixed_label.size(2))
         return mixed_imgs, mixed_label
 
 
@@ -142,7 +149,7 @@ class CutmixBlending(BaseMiniBatchBlending):
                                                   bbx1:bbx2]
         lam = 1 - (1.0 * (bbx2 - bbx1) * (bby2 - bby1) /
                    (imgs.size()[-1] * imgs.size()[-2]))
-
+        
         label = lam * label + (1 - lam) * label[rand_index, :]
 
         return imgs, label
