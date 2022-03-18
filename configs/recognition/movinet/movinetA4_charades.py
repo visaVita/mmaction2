@@ -144,7 +144,7 @@ log_level = 'INFO'
 work_dir = './work_dirs/movinetA4/'
 
 load_from = ('/home/ckai/project/mmaction2/model_zoo/movinet/modelA4_statedict_mm')
-# load_from = ('/home/ckai/project/mmaction2/work_dirs/movinetA4/epoch_12.pth')
+# load_from = ('work_dirs/movinetA4/best_mean_average_precision_epoch_38.pth')
 # load_from = None
 find_unused_parameters = True
 resume_from = None

@@ -23,12 +23,12 @@ model = dict(
         # label_smooth_eps=0.1,
         topk=3,
         tranST=dict(hidden_dim=512,
-                    enc_layer_num=1,
+                    enc_layer_num=0,
                     stld_layer_num=1,
                     n_head=4,
                     dim_feedforward=2048,
                     dropout=0.,
-                    drop_path_rate=0.1,
+                    drop_path_rate=0.,
                     normalize_before=False,
                     fusion=False,
                     rm_first_self_attn=False,
@@ -44,8 +44,9 @@ model = dict(
             disable_torch_grad_focal_loss=True
         )
     ),
-    train_cfg=dict(blending=dict(type='MixupBlending', num_classes=157, alpha=.2)),
+    # train_cfg=dict(blending=dict(type='MixupBlending', num_classes=157, alpha=.2, smoothing=0.1)),
     test_cfg=dict(maximize_clips='score', max_testing_views=5))
+
 dataset_type = 'CharadesDataset'
 data_root = 'data/charades/Charades_rgb'
 data_root_val = 'data/charades/Charades_rgb'
@@ -60,24 +61,15 @@ train_pipeline = [
     dict(
         type='SampleCharadesFrames',
         clip_len=32,
-        frame_interval=4,
+        frame_interval=2,
         num_clips=1),
+    # dict(type='UniformSampleCharadesFrames', clip_len=64),
     dict(type='RawFrameDecode'),
-    dict(type='Resize', scale=(-1, 256)),
-    dict(
-        type='MultiScaleCrop',
-        input_size=224,
-        scales=(1, 0.8),
-        random_crop=False,
-        max_wh_scale_gap=0),
-    dict(type='Resize', scale=(224, 224), keep_ratio=False),
-    dict(
-        type='Imgaug',
-        transforms=[
-            dict(type='Fliplr', p=0.5),
-            dict(type='Rotate', rotate=(-20, 20)),
-            dict(type='Dropout', p=(0, 0.05))
-        ]),
+    dict(type='RandomRescale', scale_range=(256, 340)),
+    dict(type='RandomCrop', size=224),
+    # dict(type='Resize', scale=(224, 224), keep_ratio=False),
+    dict(type='Flip', flip_ratio=0.5),
+    # dict(type='Imgaug', transforms='default'),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW'),
     dict(type='Collect', keys=['imgs', 'label'], meta_keys=[]),
@@ -87,8 +79,8 @@ val_pipeline = [
     dict(
         type='SampleCharadesFrames',
         clip_len=32,
-        frame_interval=4,
         num_clips=1,
+        frame_interval=2,
         test_mode=True),
     dict(type='RawFrameDecode'),
     dict(type='Resize', scale=(-1, 256)),
@@ -103,7 +95,6 @@ test_pipeline = [
     dict(
         type='SampleCharadesFrames',
         clip_len=32,
-        frame_interval=4,
         num_clips=10,
         test_mode=True),
     dict(type='RawFrameDecode'),
@@ -145,7 +136,7 @@ data = dict(
 evaluation = dict(interval=1, metrics=['mean_average_precision'])
 optimizer = dict(
     type='AdamW',
-    lr=3e-04,
+    lr=0.00015,
     betas=(0.9, 0.999),
     # eps=1e-8,
     weight_decay=0.05,
@@ -154,11 +145,9 @@ optimizer = dict(
     paramwise_cfg=dict(
         custom_keys={
             # swin param
-            '.backbone.absolute_pos_embed': dict(decay_mult=0.0),
-            '.backbone.relative_position_bias_table': dict(decay_mult=0.0),
-            '.backbone.norm': dict(decay_mult=0.0),
-            # TranSTL param
-            # 'cls_head.pos_enc_module.pos_enc': dict(decay_mult=0.0),
+            'backbone.absolute_pos_embed': dict(decay_mult=0.0),
+            'backbone.relative_position_bias_table': dict(decay_mult=0.0),
+            'backbone.norm': dict(decay_mult=0.0),       
             # lrp param
             'backbone': dict(lr_mult=0.1)
         }
@@ -172,7 +161,7 @@ fp16 = None
 optimizer_config = dict(
     type="DistOptimizerHook",
     update_interval=4,
-    grad_clip=None,
+    grad_clip=dict(grad_clip=dict(max_norm=5., norm_type=2)),
     coalesce=True,
     bucket_size_mb=-1,
     use_fp16=True,
@@ -203,4 +192,3 @@ load_from = ('https://github.com/SwinTransformer/storage/releases/download/v1.0.
 resume_from = None
 workflow = [('train', 1)]
 omnisource = False
-module_hooks = []
