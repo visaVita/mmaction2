@@ -1,18 +1,11 @@
-from tkinter.messagebox import NO
-from turtle import Turtle
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from mmcv.cnn import normal_init, kaiming_init
-from torch.nn.modules.dropout import Dropout
-from ..builder import build_loss
+from mmcv.cnn import normal_init
 from ..builder import HEADS
 from .base import BaseHead
-from ...core import top_k_accuracy
-from ..common import PositionalEnconding, TranST, PositionEmbeddingSine
-from sklearn.decomposition import PCA
+from ..common import PositionalEnconding, TranST
 import math
-from torch.nn import init
 
 class Swish(nn.Module):
     def __init__(self) -> None:
