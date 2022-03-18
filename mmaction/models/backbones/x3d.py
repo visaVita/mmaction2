@@ -12,6 +12,12 @@ from ...utils import get_root_logger
 from ..builder import BACKBONES
 
 
+try:
+    from mmdet.models import BACKBONES as MMDET_BACKBONES
+    mmdet_imported = True
+except (ImportError, ModuleNotFoundError):
+    mmdet_imported = False
+
 class SEModule(nn.Module):
 
     def __init__(self, channels, reduction):
@@ -147,8 +153,8 @@ class BlockX3D(nn.Module):
             out = self.conv2(out)
             if self.se_ratio is not None:
                 out = self.se_module(out)
-
-            out = self.swish(out)
+            if self.use_swish:
+                out = self.swish(out)
 
             out = self.conv3(out)
 
@@ -219,18 +225,19 @@ class X3D(nn.Module):
                  se_style='half',
                  se_ratio=1 / 16,
                  use_swish=True,
-                 conv_cfg=dict(type='Conv3d'),
+                 conv_cfg=(dict(type='Conv3d'),dict(type='Conv3d'),dict(type='Conv3d'),dict(type='Conv3d')),
                  norm_cfg=dict(type='BN3d', requires_grad=True),
                  act_cfg=dict(type='ReLU', inplace=True),
                  norm_eval=False,
                  with_cp=False,
                  zero_init_residual=True,
+                 bn_frozen=False,
                  **kwargs):
         super().__init__()
         self.gamma_w = gamma_w
         self.gamma_b = gamma_b
         self.gamma_d = gamma_d
-
+        self.bn_frozen = bn_frozen
         self.pretrained = pretrained
         self.in_channels = in_channels
         # Hard coded, can be changed by gamma_w
@@ -286,7 +293,7 @@ class X3D(nn.Module):
                 se_ratio=self.se_ratio,
                 use_swish=self.use_swish,
                 norm_cfg=self.norm_cfg,
-                conv_cfg=self.conv_cfg,
+                conv_cfg=self.conv_cfg[i],
                 act_cfg=self.act_cfg,
                 with_cp=with_cp,
                 **kwargs)
@@ -303,7 +310,7 @@ class X3D(nn.Module):
             stride=1,
             padding=0,
             bias=False,
-            conv_cfg=self.conv_cfg,
+            conv_cfg=self.conv_cfg[0],
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg)
         self.feat_dim = int(self.feat_dim * self.gamma_b)
@@ -441,7 +448,7 @@ class X3D(nn.Module):
             stride=(1, 2, 2),
             padding=(0, 1, 1),
             bias=False,
-            conv_cfg=self.conv_cfg,
+            conv_cfg=self.conv_cfg[3],
             norm_cfg=None,
             act_cfg=None)
         self.conv1_t = ConvModule(
@@ -452,7 +459,7 @@ class X3D(nn.Module):
             padding=(2, 0, 0),
             groups=self.base_channels,
             bias=False,
-            conv_cfg=self.conv_cfg,
+            conv_cfg=self.conv_cfg[3],
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg)
 
@@ -522,3 +529,9 @@ class X3D(nn.Module):
             for m in self.modules():
                 if isinstance(m, _BatchNorm):
                     m.eval()
+                    if self.bn_frozen:
+                        for param in m.parameters():
+                            param.requires_grad = False
+
+if mmdet_imported:
+    MMDET_BACKBONES.register_module()(X3D)

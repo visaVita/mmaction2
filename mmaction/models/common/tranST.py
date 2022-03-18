@@ -1,3 +1,5 @@
+import imp
+import numpy
 import torch
 from torch._C import set_flush_denormal
 import torch.nn as nn
@@ -6,6 +8,7 @@ from torch import Tensor
 import copy
 from typing import Optional
 from einops import rearrange
+import math
 
 """
 TranST: spatial_encoder, temporal_encoder, 
@@ -40,23 +43,23 @@ class TranST(nn.Module):
         if num_encoder_layers > 0:
             if not t_only:
                 spatial_encoder_layer = TransformerEncoderLayer(d_spatial_branch, n_head, dim_feedforward,
-                                                            dropout, activation, normalize_before)
+                                                            dropout, drop_path_rate, activation, normalize_before)
                 spatial_encoder_norm = nn.LayerNorm(d_spatial_branch) if normalize_before else None
                 self.spatial_encoder = TransformerEncoder(spatial_encoder_layer, num_encoder_layers, spatial_encoder_norm)
             temporal_encoder_layer = TransformerEncoderLayer(d_temporal_branch, n_head, dim_feedforward,
-                                                             dropout, activation, normalize_before)
+                                                             dropout, drop_path_rate, activation, normalize_before)
             temporal_encoder_norm = nn.LayerNorm(d_temporal_branch) if normalize_before else None
             self.temporal_encoder = TransformerEncoder(temporal_encoder_layer, num_encoder_layers, temporal_encoder_norm)
 
         if not t_only:
             spatial_decoder_layer = TransformerDecoderLayer(d_spatial_branch, n_head, dim_feedforward,
-                                                        dropout, activation, normalize_before)
+                                                        dropout, drop_path_rate, activation, normalize_before)
             spatial_decoder_norm = nn.LayerNorm(d_spatial_branch)
         else:
             spatial_decoder_layer = None
             spatial_decoder_norm = None
         temporal_decoder_layer = TransformerDecoderLayer(d_temporal_branch, n_head, dim_feedforward,
-                                                        dropout, activation, normalize_before)
+                                                        dropout, drop_path_rate, activation, normalize_before)
         temporal_decoder_norm = nn.LayerNorm(d_temporal_branch)
         
         self.STLD = STLD(spatial_decoder_layer, temporal_decoder_layer, num_decoder_layers,
@@ -64,28 +67,29 @@ class TranST(nn.Module):
                          d_spatial_branch=d_spatial_branch, d_temporal_branch=d_temporal_branch,
                          return_intermediate=return_intermediate_dec, fusion=fusion, temporal_only=t_only
         )
-        self.drop_path = DropPath(drop_path_rate) if drop_path_rate > 0. else nn.Identity()
+        # self.drop_path = DropPath(drop_path_rate) if drop_path_rate > 0. else nn.Identity()
         self.rm_self_attn_dec_func()
+        self._reset_parameters()
 
     def rm_self_attn_dec_func(self):
         total_modifie_layer_num = 0
         rm_list = []
 
-        layer_stack = self.STLD.temporal_layers if self.t_only else zip(self.STLD.spatial_layers, self.STLD.temporal_layers)
-        for idx, (layer_s, layer_t) in enumerate(layer_stack):
+        layer_stack = zip(self.STLD.temporal_layers) if self.t_only else zip(self.STLD.spatial_layers, self.STLD.temporal_layers)
+        for idx, layer in enumerate(layer_stack):
             if idx == 0 and not self.rm_first_self_attn:
                 continue
             if idx != 0 and not self.rm_res_self_attn:
                 continue
+            layer_t = layer[0]
             if not self.t_only:
+                (layer_s, layer_t) = layer
                 layer_s.omit_selfattn = True
                 del layer_s.self_attn
-                del layer_s.dropout1
                 del layer_s.norm1
             
             layer_t.omit_selfattn = True
             del layer_t.self_attn
-            del layer_t.dropout1
             del layer_t.norm1
 
             total_modifie_layer_num += 1
@@ -98,10 +102,13 @@ class TranST(nn.Module):
 
     def forward(self, src_s, src_t, query_embed, pos_s, pos_t, mask=None):
         # flatten NxCxHxW to HWxNxC
-        #bs, c, h, w = src.shape
-        #src = src.flatten(2).permute(2, 0, 1) 
+        # bs, c, t = src_t.shape
+        #src = src.flatten(2).permute(2, 0, 1)
         #pos_embed = pos_embed.flatten(2).permute(2, 0, 1)
+        
         # bs, _, _ = src_t.shape
+        # query_embed = query_embed.unsqueeze(0).repeat(bs, 1, 1)
+        
         if not self.t_only:
             src_s = src_s.permute(2, 0, 1)
             pos_s = pos_s.permute(2, 0, 1)
@@ -129,8 +136,9 @@ class TranST(nn.Module):
                             query_pos_s=query_embed,
                             query_pos_t=query_embed
             )
-            hs = self.drop_path(hs)
-            ht = self.drop_path(ht)
+            # torch.save(attn_list, "visualize/charades/attn_map/attn.pkl")
+            # hs = self.drop_path(hs)
+            # ht = self.drop_path(ht)
             return hs.transpose(1, 2), ht.transpose(1, 2)
         else:
             ht = self.STLD( tgt=tgt,
@@ -139,7 +147,7 @@ class TranST(nn.Module):
                             query_pos_s=None,
                             query_pos_t=query_embed
             )
-            ht = self.drop_path(ht)
+            # ht = self.drop_path(ht)
             return ht.transpose(1, 2)
 
 class TransformerEncoder(nn.Module):
@@ -176,7 +184,7 @@ class STLD(nn.Module):
                  d_spatial_branch=512,
                  fusion = False,
                  temporal_only = False
-                ):
+    ):
         super().__init__()
         self.t_only = temporal_only
         self.fusion = fusion
@@ -190,9 +198,7 @@ class STLD(nn.Module):
         self.temporal_norm = temporal_norm
         self.d_temporal = d_temporal_branch
         
-        self.return_intermediate = return_intermediate
-        
-        
+        self.return_intermediate = return_intermediate  
 
     def forward(self, tgt, memory_s, memory_t,
                 tgt_mask_s: Optional[Tensor] = None,
@@ -283,7 +289,7 @@ class STLD(nn.Module):
 
 class TransformerEncoderLayer(nn.Module):
 
-    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, drop_path=0.1, 
                  activation="relu", normalize_before=False):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
@@ -294,9 +300,8 @@ class TransformerEncoderLayer(nn.Module):
 
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
-        self.dropout1 = nn.Dropout(dropout)
-        # self.dropout1 = nn.Identity()
-        self.dropout2 = nn.Dropout(dropout)
+        # self.dropout1 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
         self.activation = _get_activation_fn(activation)
         self.normalize_before = normalize_before
@@ -317,10 +322,10 @@ class TransformerEncoderLayer(nn.Module):
                                  key_padding_mask=src_key_padding_mask)
         
 
-        src = src + self.dropout1(src2)
+        src = src + self.drop_path(src2)
         src = self.norm1(src)
         src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
-        src = src + self.dropout2(src2)
+        src = src + self.drop_path(src2)
         src = self.norm2(src)
         return src
 
@@ -333,10 +338,10 @@ class TransformerEncoderLayer(nn.Module):
         src2, _ = self.self_attn(q, k, value=src2, attn_mask=src_mask,
                               key_padding_mask=src_key_padding_mask)
                             
-        src = src + self.dropout1(src2)
+        src = src + self.drop_path(src2)
         src2 = self.norm2(src)
         src2 = self.linear2(self.dropout(self.activation(self.linear1(src2))))
-        src = src + self.dropout2(src2)
+        src = src + self.drop_path(src2)
         return src
 
     def forward(self, src,
@@ -349,8 +354,7 @@ class TransformerEncoderLayer(nn.Module):
 
 
 class TransformerDecoderLayer(nn.Module):
-
-    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1,
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, drop_path=0.1,
                  activation="relu", normalize_before=False):
         super().__init__()
         self.self_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout)
@@ -363,11 +367,9 @@ class TransformerDecoderLayer(nn.Module):
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         self.norm3 = nn.LayerNorm(d_model)
-        self.dropout1 = nn.Dropout(dropout)
-        self.dropout2 = nn.Dropout(dropout)
-        # self.dropout1 = nn.Identity()
-        # self.dropout2 = nn.Identity()
-        self.dropout3 = nn.Dropout(dropout)
+        # self.dropout1 = nn.Dropout(dropout) if dropout > 0. else nn.Identity()
+        # self.dropout2 = nn.Dropout(dropout) if dropout > 0. else nn.Identity()
+        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
         self.activation = _get_activation_fn(activation)
         self.normalize_before = normalize_before
@@ -379,6 +381,7 @@ class TransformerDecoderLayer(nn.Module):
     def with_pos_embed(self, tensor, pos: Optional[Tensor]):
         return tensor if pos is None else tensor + pos
 
+    # @get_local('cross_attn')
     def forward_post(self, tgt, memory,
                      tgt_mask: Optional[Tensor] = None,
                      memory_mask: Optional[Tensor] = None,
@@ -392,24 +395,25 @@ class TransformerDecoderLayer(nn.Module):
             tgt2, _ = self.self_attn(q, k, value=tgt, attn_mask=tgt_mask,
                                 key_padding_mask=tgt_key_padding_mask)
 
-            tgt = tgt + self.dropout1(tgt2)
+            tgt = tgt + self.drop_path(tgt2)
             tgt = self.norm1(tgt)
-
+            # print(self_attn_map)
+        
         tgt2, _ = self.multihead_attn(query=self.with_pos_embed(tgt, query_pos),
                                 key=self.with_pos_embed(memory, pos),
                                 value=memory, attn_mask=memory_mask,
                                 key_padding_mask=memory_key_padding_mask)
+        # print(cross_attn.shape)
+        # attn_list.append(cross_attn)
+        # print(len(cross_attn))
         
-        tgt = tgt + self.dropout2(tgt2)
+        tgt = tgt + self.drop_path(tgt2)
         tgt = self.norm2(tgt)
 
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
-        tgt = tgt + self.dropout3(tgt2)
+        tgt = tgt + self.drop_path(tgt2)
         tgt = self.norm3(tgt)
-        if not self.omit_selfattn:
-            return tgt
-        else:
-            return tgt
+        return tgt
 
     def forward_pre(self, tgt, memory,
                     tgt_mask: Optional[Tensor] = None,
@@ -423,17 +427,17 @@ class TransformerDecoderLayer(nn.Module):
         tgt2, _ = self.self_attn(q, k, value=tgt2, attn_mask=tgt_mask,
                               key_padding_mask=tgt_key_padding_mask)
 
-        tgt = tgt + self.dropout1(tgt2)
+        tgt = tgt + self.drop_path(tgt2)
         tgt2 = self.norm2(tgt)
         tgt2, _ = self.multihead_attn(query=self.with_pos_embed(tgt2, query_pos),
                                    key=self.with_pos_embed(memory, pos),
                                    value=memory, attn_mask=memory_mask,
                                    key_padding_mask=memory_key_padding_mask)
                             
-        tgt = tgt + self.dropout2(tgt2)
+        tgt = tgt + self.drop_path(tgt2)
         tgt2 = self.norm3(tgt)
         tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt2))))
-        tgt = tgt + self.dropout3(tgt2)
+        tgt = tgt + self.drop_path(tgt2)
         return tgt
 
     def forward(self, tgt, memory,
@@ -464,6 +468,50 @@ def _get_activation_fn(activation):
         return F.hardswish
     raise RuntimeError(F"activation should be relu/gelu, not {activation}.")
 
+
+class PositionEmbeddingSine(nn.Module):
+    """
+    This is a more standard version of the position embedding, very similar to the one
+    used by the Attention is all you need paper, generalized to work on images.
+    """
+    def __init__(self, num_pos_feats=64, temperature=10000, normalize=False, scale=None, maxH=30, maxW=30):
+        super().__init__()
+        self.num_pos_feats = num_pos_feats
+        self.temperature = temperature
+        self.normalize = normalize
+        if scale is not None and normalize is False:
+            raise ValueError("normalize should be True if scale is passed")
+        if scale is None:
+            scale = 2 * math.pi
+        self.scale = scale
+
+        self.maxH = maxH
+        self.maxW = maxW
+        pe = self._gen_pos_buffer()
+        self.register_buffer('pe', pe)
+
+    def _gen_pos_buffer(self):
+        _eyes = torch.ones((1, self.maxH, self.maxW))
+        y_embed = _eyes.cumsum(1, dtype=torch.float32)
+        x_embed = _eyes.cumsum(2, dtype=torch.float32)
+        if self.normalize:
+            eps = 1e-6
+            y_embed = y_embed / (y_embed[:, -1:, :] + eps) * self.scale
+            x_embed = x_embed / (x_embed[:, :, -1:] + eps) * self.scale
+
+        dim_t = torch.arange(self.num_pos_feats, dtype=torch.float32)
+        dim_t = self.temperature ** (2 * (dim_t // 2) / self.num_pos_feats)
+
+        pos_x = x_embed[:, :, :, None] / dim_t
+        pos_y = y_embed[:, :, :, None] / dim_t
+        pos_x = torch.stack((pos_x[:, :, :, 0::2].sin(), pos_x[:, :, :, 1::2].cos()), dim=4).flatten(3)
+        pos_y = torch.stack((pos_y[:, :, :, 0::2].sin(), pos_y[:, :, :, 1::2].cos()), dim=4).flatten(3)
+        pos = torch.cat((pos_y, pos_x), dim=3).permute(0, 3, 1, 2)
+        return pos
+
+    def forward(self, input: Tensor):
+        x = input
+        return self.pe.repeat((x.size(0),1,1,1))
 
 def drop_path(x, drop_prob: float = 0., training: bool = False):
     """Drop paths (Stochastic Depth) per sample (when applied in main path of residual blocks).

@@ -226,7 +226,6 @@ class FFNWithNorm(FFN):
 class PositionalEnconding(nn.Module):
     def __init__(self,d_model,dropout,max_len=5000,ret_enc=False):
         '''
-
         :param d_model: 词嵌入维度
         :param dropout: 丢失率
         :param max_len: 每个句子的最长长度
@@ -257,7 +256,6 @@ class PositionalEnconding(nn.Module):
 
     def forward(self,x):
         '''
-
         :param x: 文本的词嵌入表示
         :return:
         '''

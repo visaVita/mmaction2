@@ -91,11 +91,9 @@ class BaseHead(nn.Module, metaclass=ABCMeta):
             target_vec (tensor[N x C]): each element is either 0 or 1
 
         """
-        """ import ipdb
-        ipdb.set_trace() """
         correct = pred_vec & target_vec
         # Seems torch 1.5 has no auto type conversion
-        recall = correct.sum(1) / (target_vec.sum(1) + 1e-6)
+        recall = correct.sum(1) / (target_vec.sum(1).float() + 1e-6)
         prec = correct.sum(1) / (pred_vec.sum(1) + 1e-6)
         return recall.mean(), prec.mean()
 
@@ -104,7 +102,7 @@ class BaseHead(nn.Module, metaclass=ABCMeta):
         pred_vec = pred > thr
         # Target is 0 or 1, so using 0.5 as the borderline is OK
         target_vec = target > 0.5
-        # recall_thr, prec_thr = self.recall_prec(pred_vec, target_vec)
+        recall_thr, prec_thr = self.recall_prec(pred_vec, target_vec)
 
         recalls, precs = [], []
         for k in self.topk:
@@ -117,7 +115,7 @@ class BaseHead(nn.Module, metaclass=ABCMeta):
             recall_k, prec_k = self.recall_prec(pred_vec, target_vec)
             recalls.append(recall_k)
             precs.append(prec_k)
-        return recalls, precs
+        return recall_thr, prec_thr, recalls, precs
 
     def loss(self, cls_score, labels, **kwargs):
         """Calculate the loss given output ``cls_score``, target ``labels``.
@@ -171,9 +169,10 @@ class BaseHead(nn.Module, metaclass=ABCMeta):
             # =========================================================
             # losses['loss_action_cls'] = loss_cls
 
-            recall_k, prec_k = self.multi_label_accuracy(
+            recall_thr, prec_thr, recall_k, prec_k = self.multi_label_accuracy(
                 cls_score, labels, thr=0.5)
-            
+            losses['recall@thr=0.5'] = recall_thr
+            losses['prec@thr=0.5'] = prec_thr
             for i, k in enumerate(self.topk):
                 losses[f'recall@top{k}'] = recall_k[i]
                 losses[f'prec@top{k}'] = prec_k[i]

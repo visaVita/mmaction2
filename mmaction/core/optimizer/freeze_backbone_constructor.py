@@ -34,8 +34,14 @@ class freeze_backbone_constructor(DefaultOptimizerConstructor):
 
         # model.cls_head.pos_enc_module.eval()
 
+        # params.append({
+        #     'params': list(model.cls_head.parameters()),
+        #     'lr': self.base_lr,
+        #     'weight_decay': self.base_wd
+        # })
+
         params.append({
-            'params': list(model.cls_head.parameters()),
+            'params': list(model.roi_head.parameters()),
             'lr': self.base_lr,
             'weight_decay': self.base_wd
         })

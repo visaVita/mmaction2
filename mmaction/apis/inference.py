@@ -15,6 +15,9 @@ from mmaction.core import OutputHook
 from mmaction.datasets.pipelines import Compose
 from mmaction.models import build_recognizer
 
+from visualizer import get_local
+get_local.activate()
+
 
 def init_recognizer(config, checkpoint=None, device='cuda:0', **kwargs):
     """Initialize a recognizer from config file.
@@ -129,7 +132,7 @@ def inference_recognizer(model, video, outputs=None, as_tensor=True, **kwargs):
             if 'Decode' in test_pipeline[i]['type']:
                 test_pipeline[i] = dict(type='OpenCVDecode')
     if input_flag == 'rawframes':
-        filename_tmpl = cfg.data.test.get('filename_tmpl', 'img_{:05}.jpg')
+        filename_tmpl = cfg.data.test.get('filename_tmpl', 'img-{:06}.jpg')
         modality = cfg.data.test.get('modality', 'RGB')
         start_index = cfg.data.test.get('start_index', 1)
 
@@ -156,7 +159,7 @@ def inference_recognizer(model, video, outputs=None, as_tensor=True, **kwargs):
             test_pipeline = test_pipeline[1:]
         for i in range(len(test_pipeline)):
             if 'Decode' in test_pipeline[i]['type']:
-                test_pipeline[i] = dict(type='RawFrameDecode')
+                test_pipeline[i] = dict(type='AVARawFrameDecode')
 
     test_pipeline = Compose(test_pipeline)
     data = test_pipeline(data)
@@ -176,7 +179,7 @@ def inference_recognizer(model, video, outputs=None, as_tensor=True, **kwargs):
     score_tuples = tuple(zip(range(num_classes), scores))
     score_sorted = sorted(score_tuples, key=itemgetter(1), reverse=True)
 
-    top5_label = score_sorted[:5]
+    top10_label = score_sorted[:10]
     if outputs:
-        return top5_label, returned_features
-    return top5_label
+        return top10_label, returned_features
+    return top10_label

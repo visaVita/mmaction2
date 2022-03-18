@@ -11,7 +11,12 @@ model = dict(
         conv_cfg=dict(type='Conv3d'),
         norm_eval=False,
         inflate=((1, 1, 1), (1, 0, 1, 0), (1, 0, 1, 0, 1, 0), (0, 1, 0)),
-        zero_init_residual=False),
+        zero_init_residual=False,
+        non_local_cfg=dict(
+            sub_sample=True,
+            use_scale=False,
+            norm_cfg=dict(type='BN3d', requires_grad=True),
+            mode='embedded_gaussian')),
     cls_head=dict(
         type='I3DHead',
         num_classes=157,
@@ -39,7 +44,7 @@ ann_file_val = 'data/charades/annotations/charades_val_list_rawframes.csv'
 ann_file_test = 'data/charades/annotations/charades_val_list_rawframes.csv'
 
 img_norm_cfg = dict(
-    mean=[105.315, 93.84, 86.19], std=[33.405, 31.875, 33.66], to_bgr=False)
+    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='SampleCharadesFrames', clip_len=64, frame_interval=2, num_clips=1),
     dict(type='RawFrameDecode'),
@@ -88,7 +93,7 @@ test_pipeline = [
     dict(type='ToTensor', keys=['imgs'])
 ]
 data = dict(
-    videos_per_gpu=4,
+    videos_per_gpu=8,
     workers_per_gpu=2,
     val_dataloader=dict(videos_per_gpu=1),
     test_dataloader=dict(videos_per_gpu=1),
@@ -113,21 +118,18 @@ evaluation = dict(
 
 optimizer = dict(
     type='SGD',
-    lr=0.0375,  # this lr is used for 8 gpus
+    lr=0.05,  # this lr is used for 8 gpus
     momentum=0.9,
     weight_decay=0.0001,
     # constructor='freeze_backbone_constructor',
     # paramwise_cfg = dict(lrp=0.1)
 )
 lr_config = dict(policy='step',
-                 step=[40, 50],
-                 warmup='linear',
-                 warmup_by_epoch=True,
-                 warmup_iters=4)
+                 step=[20])
 
 optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 
-total_epochs = 60
+total_epochs = 30
 
 
 log_config = dict(
@@ -139,10 +141,10 @@ log_config = dict(
 
 # runtime settings
 checkpoint_config = dict(interval=5)
-load_from = 'https://download.openmmlab.com/mmaction/recognition/i3d/i3d_r50_256p_32x2x1_100e_kinetics400_rgb/i3d_r50_256p_32x2x1_100e_kinetics400_rgb_20200801-7d9f44de.pth'
-# oad_from = '/home/ckai/project/mmaction2/work_dirs/i3d_r50_32x2x1_freeze_80e_charades_rgb/map3280.pth'
+# load_from = 'https://download.openmmlab.com/mmaction/recognition/i3d/i3d_nl_embedded_gaussian_r50_32x2x1_100e_kinetics400_rgb/i3d_nl_embedded_gaussian_r50_32x2x1_100e_kinetics400_rgb_20200813-6e6aef1b.pth'
+load_from = 'work_dirs/i3d_r50_64x2x1_charades_rgb/best_mean_average_precision_epoch_40.pth'
 resume_from = None
-work_dir = './work_dirs/i3d_r50_32x2x1_60e_charades_rgb/'
+work_dir = './work_dirs/i3d_r50_64x2x1_charades_rgb/'
 find_unused_parameters = False
 
 dist_params = dict(backend='nccl')

@@ -26,7 +26,6 @@ class Swish(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         return x * torch.sigmoid(x)
 
-
 class CausalModule(nn.Module):
     def __init__(self) -> None:
         super().__init__()
@@ -145,6 +144,7 @@ class Conv3DBNActivation(nn.Sequential):
         self.out_channels = out_planes
         super(Conv3DBNActivation, self).__init__(dict_layers)
 
+
 class ConvBlock3D(CausalModule):
     def __init__(
             self,
@@ -230,25 +230,7 @@ class ConvBlock3D(CausalModule):
         self.tf_like = tf_like
 
     def _forward(self, x: Tensor) -> Tensor:
-        device = x.device
-        if self.dim_pad > 0 and self.conv_2 is None and self.causal is True:
-            x = self._cat_stream_buffer(x, device)
-        shape_with_buffer = x.shape
-        if self.conv_type == "2plus1d":
-            x = rearrange(x, "b c t h w -> (b t) c h w")
         x = self.conv_1(x)
-        if self.conv_type == "2plus1d":
-            x = rearrange(x,
-                          "(b t) c h w -> b c t h w",
-                          t=shape_with_buffer[2])
-
-            if self.conv_2 is not None:
-                if self.dim_pad > 0 and self.causal is True:
-                    x = self._cat_stream_buffer(x, device)
-                w = x.shape[-1]
-                x = rearrange(x, "b c t h w -> b c t (h w)")
-                x = self.conv_2(x)
-                x = rearrange(x, "b c t (h w) -> b c t h w", w=w)
         return x
 
     def forward(self, x: Tensor) -> Tensor:
@@ -275,58 +257,8 @@ class ConvBlock3D(CausalModule):
         self.activation = torch.zeros(*input_shape[:2],  # type: ignore
                                       self.dim_pad,
                                       *input_shape[3:])
-
-class SqueezeExcitation(nn.Module):
-
-    def __init__(self, input_channels: int,  # TODO rename activations
-                 activation_2: nn.Module,
-                 activation_1: nn.Module,
-                 conv_type: str,
-                 causal: bool,
-                 squeeze_factor: int = 4,
-                 bias: bool = True) -> None:
-        super().__init__()
-        self.causal = causal
-        se_multiplier = 2 if causal else 1
-        squeeze_channels = _make_divisible(input_channels
-                                           // squeeze_factor
-                                           * se_multiplier, 8)
-        self.temporal_cumualtive_GAvg3D = TemporalCGAvgPool3D()
-        self.fc1 = ConvBlock3D(input_channels*se_multiplier,
-                               squeeze_channels,
-                               kernel_size=(1, 1, 1),
-                               padding=0,
-                               tf_like=False,
-                               causal=causal,
-                               conv_type=conv_type,
-                               bias=bias)
-        self.activation_1 = activation_1()
-        self.activation_2 = activation_2()
-        self.fc2 = ConvBlock3D(squeeze_channels,
-                               input_channels,
-                               kernel_size=(1, 1, 1),
-                               padding=0,
-                               tf_like=False,
-                               causal=causal,
-                               conv_type=conv_type,
-                               bias=bias)
-
-    def _scale(self, input: Tensor) -> Tensor:
-        if self.causal:
-            x_space = torch.mean(input, dim=[3, 4], keepdim=True)
-            scale = self.temporal_cumualtive_GAvg3D(x_space)
-            scale = torch.cat((scale, x_space), dim=1)
-        else:
-            scale = F.adaptive_avg_pool3d(input, 1)
-        scale = self.fc1(scale)
-        scale = self.activation_1(scale)
-        scale = self.fc2(scale)
-        return self.activation_2(scale)
-
-    def forward(self, input: Tensor) -> Tensor:
-        scale = self._scale(input)
-        return scale * input
-
+# TODO add requirements
+# TODO create a train sample, just so that we can test the training
 
 def _make_divisible(v: float,
                     divisor: int,
@@ -397,151 +329,65 @@ class tfAvgPool3D(nn.Module):
             x[..., -1, :] = x[..., -1, :] * 9/6
         return x
 
+
 @HEADS.register_module()
 class MoViNetHead(BaseHead):
     def __init__(self,
-                 cfg,
                  num_classes,
-                 loss_cls,
+                 hidden_dim,
+                 in_channels,
+                 tf_like=True,
+                 causal=False,
+                 conv_type='3d',
+                 loss_cls=dict(type='CrossEntropyLoss'),
+                 spatial_type='avg',
                  dropout_ratio=0.5,
-                 topk=(3, 5),
+                 init_std=0.01,
                  **kwargs):
-        super().__init__(num_classes, cfg['conv7']['out_channels'], loss_cls=loss_cls, topk=topk, **kwargs)
+        super().__init__(num_classes, in_channels, loss_cls, **kwargs)
+        self.spatial_type = spatial_type
         self.dropout_ratio = dropout_ratio
-        in_channels = cfg['conv7']['out_channels']
-        hidden_dim = cfg['dense9']['hidden_dim']
-        
-        # topk
-        if topk is None:
-            self.topk = ()
-        elif isinstance(topk, int):
-            self.topk = (topk, )
-        elif isinstance(topk, tuple):
-            assert all([isinstance(k, int) for k in topk])
-            self.topk = topk
-        else:
-            raise TypeError('topk should be int or tuple[int], '
-                            f'but get {type(topk)}')
-        # Class 0 is ignored when calculaing multilabel accuracy,
-        # so topk cannot be equal to num_classes
-        assert all([k < num_classes for k in self.topk])
-
-        # dropout
+        self.init_std = init_std
         if self.dropout_ratio != 0:
             self.dropout = nn.Dropout(p=self.dropout_ratio)
         else:
-            self.dropout = None
-
-        # transformer
-        self.transformer_s = Transformer(d_model=hidden_dim,
-                                         nhead=8,
-                                         num_encoder_layers=0,
-                                         num_decoder_layers=2,
-                                         dim_feedforward=hidden_dim*2,
-                                         dropout=0.2,
-                                         rm_first_self_attn=False,
-                                         rm_self_attn_dec=False
+            self.dropout = nn.Identity()
+        self.classifier = nn.Sequential(
+            # dense9
+            nn.Conv3d(in_channels, hidden_dim, 1),
+            Swish(),
+            nn.Dropout(p=0.2, inplace=True),
+            # dense10d
+            nn.Conv3d(hidden_dim, num_classes,1)
         )
-        self.transformer_t = Transformer(d_model=hidden_dim,
-                                         nhead=8,
-                                         num_encoder_layers=0,
-                                         num_decoder_layers=2,
-                                         dim_feedforward=hidden_dim*2,
-                                         dropout=0.2,
-                                         rm_first_self_attn=False,
-                                         rm_self_attn_dec=False
-        )
-        self.pos_enc_module = PositionalEnconding(d_model=hidden_dim, dropout=0.1, max_len=5000, ret_enc=True)
-        self.transform = nn.Sequential(
-            ConvBlock3D(in_channels,
-                        hidden_dim,
-                        kernel_size=(1, 1, 1),
-                        tf_like=True,
-                        causal=False,
-                        conv_type='3d',
-                        bias=True),
-            Swish()
-        )
-        self.base_cls = nn.Linear(hidden_dim, num_classes)
-        self.temporal_pool = nn.AdaptiveMaxPool3d((1, None, None))
-        self.spatial_pool  = nn.AdaptiveMaxPool3d((None, 1, 1))
-        self.global_max_pool = nn.AdaptiveMaxPool3d((1, 1, 1))
-        self.mask_mat = nn.Parameter(torch.eye(self.num_classes).float())
-        self.fc_cls = nn.Linear(hidden_dim*2, num_classes)
-
-
-
-        """ self.classifier = nn.Sequential(
-                # dense9
-                ConvBlock3D(cfg['conv7']['out_channels'],
-                            cfg['dense9']['hidden_dim'],
-                            kernel_size=(1, 1, 1),
-                            tf_like=tf_like,
-                            causal=causal,
-                            conv_type=conv_type,
-                            bias=True),
-                Swish(),
-                nn.Dropout(p=0.2, inplace=True),
-                # dense10d
-                ConvBlock3D(cfg['dense9']['hidden_dim'],
-                            num_classes,
-                            kernel_size=(1, 1, 1),
-                            tf_like=tf_like,
-                            causal=causal,
-                            conv_type=conv_type,
-                            bias=True),
-            )
-        if causal:
-            self.cgap = TemporalCGAvgPool3D()
-
-    def avg(self, x: Tensor) -> Tensor:
-        if self.causal:
-            avg = F.adaptive_avg_pool3d(x, (x.shape[2], 1, 1))
-            avg = self.cgap(avg)[:, :, -1:]
+        
+        if self.spatial_type == 'avg':
+            # use `nn.AdaptiveAvgPool3d` to adaptively match the in_channels.
+            self.avg_pool = nn.AdaptiveAvgPool3d((1, 1, 1))
         else:
-            avg = F.adaptive_avg_pool3d(x, 1)
-        return avg """
+            self.avg_pool = None
+        
+        # self.init_weights()
     
     def init_weights(self):
-        for m in enumerate(self.modules()):
-            if isinstance(m, nn.Conv3d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out')
-                if m.bias is not None:
-                    nn.init.zeros_(m.bias)
-            elif isinstance(m, (nn.BatchNorm3d, nn.BatchNorm2d, nn.GroupNorm)):
-                nn.init.ones_(m.weight)
-                nn.init.zeros_(m.bias)
-            elif isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, 0, 0.01)
-                nn.init.zeros_(m.bias)
+        # print(len(self.classifier))
+        for m in range(len(self.classifier)):
+            # print(self.classifier[m])
+            if isinstance(self.classifier[m], nn.Conv3d):
+                nn.init.kaiming_normal_(self.classifier[m].weight, mode='fan_out')
+                if self.classifier[m].bias is not None:
+                    nn.init.zeros_(self.classifier[m].bias)
+            elif isinstance(self.classifier[m], (nn.BatchNorm3d, nn.BatchNorm2d, nn.GroupNorm)):
+                nn.init.ones_(self.classifier[m].weight)
+                nn.init.zeros_(self.classifier[m].bias)
+            elif isinstance(self.classifier[m], nn.Linear):
+                nn.init.normal_(self.classifier[m].weight, 0, 0.01)
+                nn.init.zeros_(self.classifier[m].bias)
     
     def forward(self, x):
-        x = self.transform(x)
-        if self.dropout is not None:
-            x = self.dropout(x)
-        F_s = self.temporal_pool(x)
-        F_t = self.spatial_pool(x)
-        F_s = F_s.view(F_s.size(0), F_s.size(1), -1)
-        F_t = F_t.view(F_t.size(0), F_t.size(1), -1)
-        x = self.global_max_pool(x)
-        x = x.view(x.size(0), -1)
-        b, _ = x.shape
-        score_1 = self.base_cls(x)
-        label_embedding = x.repeat(1, self.num_classes) 
-        label_embedding = label_embedding.view(b, self.num_classes, -1)
-        label_embedding = label_embedding * self.base_cls.weight
-
-        pos_s = self.pos_enc_module(F_s.permute(0,2,1))
-        pos_s = pos_s.permute(0,2,1)
-        pos_t = self.pos_enc_module(F_t.permute(0,2,1))
-        pos_t = pos_t.permute(0,2,1)
-
-        hs = self.transformer_s(F_s, label_embedding, pos_s)[0]
-        ht = self.transformer_t(F_t, label_embedding, pos_t)[0]
-        h = torch.cat([hs, ht], dim=3)
-        score_2 = self.fc_cls(h[-1])
-        mask_mat = self.mask_mat.detach()
-        score_2 = (score_2 * mask_mat).sum(-1)
-
-        cls_score = (score_1 + score_2) / 2
-        return cls_score
+        x = self.avg_pool(x)
+        x = self.dropout(x)
+        # print(x.dtype)
+        x = self.classifier(x)
+        x = x.flatten(1)
+        return x

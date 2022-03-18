@@ -7,11 +7,13 @@ import torch.nn as nn
 
 from mmaction.apis import inference_recognizer, init_recognizer
 
+from visualizer import get_local
+
 video_config_file = 'configs/recognition/tsn/tsn_r50_video_inference_1x1x3_100e_kinetics400_rgb.py'  # noqa: E501
-frame_config_file = 'configs/recognition/tsn/tsn_r50_inference_1x1x3_100e_kinetics400_rgb.py'  # noqa: E501
+frame_config_file = 'configs/recognition/swin/swin_base_patch244_window877_kinetics600_pretrained_freeze_backbone_tranST_charades.py'  # noqa: E501
 flow_frame_config_file = 'configs/recognition/tsn/tsn_r50_320p_1x1x3_110e_kinetics400_flow.py'  # noqa: E501
 video_path = 'demo/demo.mp4'
-frames_path = 'tests/data/imgs'
+frames_path = 'data/charades/Charades_rgb/N93LD'
 
 
 def test_init_recognizer():
@@ -103,18 +105,12 @@ def test_frames_inference_recognizer():
     else:
         device = 'cpu'
     rgb_model = init_recognizer(frame_config_file, None, device)
-    flow_model = init_recognizer(flow_frame_config_file, None, device)
 
     with pytest.raises(RuntimeError):
         # video path doesn't exist
         inference_recognizer(rgb_model, 'missing_path')
 
     for ops in rgb_model.cfg.data.test.pipeline:
-        if ops['type'] in ('TenCrop', 'ThreeCrop'):
-            # Use CenterCrop to reduce memory in order to pass CI
-            ops['type'] = 'CenterCrop'
-            ops['crop_size'] = 224
-    for ops in flow_model.cfg.data.test.pipeline:
         if ops['type'] in ('TenCrop', 'ThreeCrop'):
             # Use CenterCrop to reduce memory in order to pass CI
             ops['type'] = 'CenterCrop'
@@ -126,18 +122,6 @@ def test_frames_inference_recognizer():
     assert scores == sorted(scores, reverse=True)
 
     _, feat = inference_recognizer(
-        flow_model,
-        frames_path,
-        outputs=('backbone', 'cls_head'),
-        as_tensor=False)
-    assert isinstance(feat, dict)
-    assert 'backbone' in feat and 'cls_head' in feat
-    assert isinstance(feat['backbone'], np.ndarray)
-    assert isinstance(feat['cls_head'], np.ndarray)
-    assert feat['backbone'].shape == (25, 2048, 7, 7)
-    assert feat['cls_head'].shape == (1, 400)
-
-    _, feat = inference_recognizer(
         rgb_model,
         frames_path,
         outputs=('backbone.layer3', 'backbone.layer3.1.conv1'))
@@ -147,3 +131,42 @@ def test_frames_inference_recognizer():
     assert isinstance(feat['backbone.layer3'], torch.Tensor)
     assert feat['backbone.layer3'].size() == (25, 1024, 14, 14)
     assert feat['backbone.layer3.1.conv1'].size() == (25, 256, 14, 14)
+
+def get_visualizer():
+    if torch.cuda.is_available():
+        device = 'cuda:0'
+    else:
+        device = 'cpu'
+    rgb_model = init_recognizer(frame_config_file, None, device)
+
+    with pytest.raises(RuntimeError):
+        # video path doesn't exist
+        inference_recognizer(rgb_model, 'missing_path')
+
+    for ops in rgb_model.cfg.data.test.pipeline:
+        if ops['type'] in ('TenCrop', 'ThreeCrop'):
+            # Use CenterCrop to reduce memory in order to pass CI
+            ops['type'] = 'CenterCrop'
+            ops['crop_size'] = 224
+
+    top10_label = inference_recognizer(rgb_model, frames_path)
+    scores = [item[1] for item in top10_label]
+    assert len(top10_label) == 10
+    assert scores == sorted(scores, reverse=True)
+
+
+    labels = inference_recognizer(
+        rgb_model,
+        frames_path)
+
+    cache = get_local.cache
+    print(cache)
+    print(labels)
+
+
+
+
+if __name__ == '__main__':
+    # main()
+    get_local.activate()
+    get_visualizer()

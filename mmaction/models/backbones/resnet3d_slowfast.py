@@ -428,6 +428,7 @@ class ResNet3dSlowFast(nn.Module):
 
     def __init__(self,
                  pretrained,
+                 freezed=False,
                  resample_rate=8,
                  speed_ratio=8,
                  channel_ratio=8,
@@ -455,6 +456,7 @@ class ResNet3dSlowFast(nn.Module):
                      CoT=(0, 0, 0, 1))):
         super().__init__()
         self.pretrained = pretrained
+        self.freezed = freezed
         self.resample_rate = resample_rate
         self.speed_ratio = speed_ratio
         self.channel_ratio = channel_ratio
@@ -465,6 +467,24 @@ class ResNet3dSlowFast(nn.Module):
 
         self.slow_path = build_pathway(slow_pathway)
         self.fast_path = build_pathway(fast_pathway)
+        self._freeze()
+
+    def _freeze(self):
+        """Prevent all the parameters from being optimized."""
+        if self.freezed:
+            m = getattr(self, 'slow_path')
+            for layer in m.modules():
+                layer.eval()
+            m.eval()
+            for param in m.parameters():
+                param.requires_grad = False
+            
+            n = getattr(self, 'fast_path')
+            for layer in n.modules():
+                layer.eval()
+            n.eval()
+            for param in n.parameters():
+                param.requires_grad = False
 
     def init_weights(self, pretrained=None):
         """Initiate the parameters either from existing checkpoint or from

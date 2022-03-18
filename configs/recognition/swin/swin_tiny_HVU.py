@@ -1,11 +1,13 @@
 category_nums = dict(
     action=739, attribute=117, concept=291, event=69, object=1678, scene=248)
-target_cate = 'action'
+target_cate = 'object'
 
 model=dict(
     type='Recognizer3D',
     backbone=dict(
         type='SwinTransformer3D',
+        pretrained="model_zoo/swin/swin_tiny_patch4_window7_224.pth",
+        pretrained2d=True,
         patch_size=(2,4,4),
         embed_dim=96,
         depths=[2, 2, 6, 2],
@@ -21,27 +23,32 @@ model=dict(
     cls_head=dict(
         type='TranSTHead',
         in_channels=768,
-        spatial_type='avg',
         dropout_ratio=0.5,
-        num_classes=category_nums[target_cate],
+        num_classes=157,
         multi_class=True,
-        label_smooth_eps=0.1,
-        topk=(3),
-        tranST=dict(hidden_dim=1024,
-                    enc_layer_num=0,
+        # label_smooth_eps=0.1,
+        topk=3,
+        tranST=dict(hidden_dim=768,
+                    enc_layer_num=1,
                     stld_layer_num=2,
-                    n_head=8,
-                    dim_feedforward=2048,
-                    dropout=0.1,
+                    n_head=4,
+                    dim_feedforward=3072,
+                    dropout=0.,
+                    drop_path_rate=0.1,
                     normalize_before=True,
-                    fusion=True,
-                    rm_self_attn_dec=False,
+                    fusion=False,
                     rm_first_self_attn=False,
-                    activation="hardswish",
+                    rm_res_self_attn=False,
+                    activation="relu",
                     return_intermediate_dec=False,
                     t_only=False
         ),
-        loss_cls=dict(type='AsymmetricLossOptimized', gamma_neg=4, gamma_pos=1, disable_torch_grad_focal_loss=True),
+        loss_cls=dict(
+            type='AsymmetricLossOptimized',
+            gamma_neg=4,
+            gamma_pos=1,
+            disable_torch_grad_focal_loss=True
+        )
     ),
     train_cfg=None,
     test_cfg=dict(
@@ -60,7 +67,7 @@ img_norm_cfg = dict(
     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(type='DecordInit'),
-    dict(type='SampleFrames', clip_len=32, frame_interval=2, num_clips=1),
+    dict(type='SampleFrames', clip_len=16, frame_interval=4, num_clips=1),
     dict(type='DecordDecode'),
     dict(type='Resize', scale=(-1, 256)),
     dict(type='RandomResizedCrop'),
@@ -75,8 +82,8 @@ val_pipeline = [
     dict(type='DecordInit'),
     dict(
         type='SampleFrames',
-        clip_len=32,
-        frame_interval=2,
+        clip_len=16,
+        frame_interval=4,
         num_clips=1,
         test_mode=True),
     dict(type='DecordDecode'),
@@ -91,8 +98,8 @@ test_pipeline = [
     dict(type='DecordInit'),
     dict(
         type='SampleFrames',
-        clip_len=32,
-        frame_interval=2,
+        clip_len=16,
+        frame_interval=4,
         num_clips=10,
         test_mode=True),
     dict(type='DecordDecode'),
@@ -104,7 +111,7 @@ test_pipeline = [
     dict(type='ToTensor', keys=['imgs', 'label'])
 ]
 data = dict(
-    videos_per_gpu=8,
+    videos_per_gpu=16,
     workers_per_gpu=2,
     val_dataloader=dict(videos_per_gpu=1),
     test_dataloader=dict(videos_per_gpu=1),
@@ -130,7 +137,7 @@ data = dict(
         multi_class=True,
         num_classes=category_nums[target_cate]))
 evaluation = dict(
-    interval=5, metrics=['mean_average_precision'])
+    interval=1, metrics=['mean_average_precision'])
 
 # optimizer
 """ optimizer = dict(
@@ -139,7 +146,7 @@ evaluation = dict(
                                                  'relative_position_bias_table': dict(decay_mult=0.),
                                                  'norm': dict(decay_mult=0.),
                                                  'backbone': dict(lr_mult=0.1)})) """
-optimizer = dict(type='AdamW', lr=2e-4, betas=(0.9, 0.999), weight_decay=0.05,
+optimizer = dict(type='AdamW', lr=0.0001, betas=(0.9, 0.999), weight_decay=0.02,
                  paramwise_cfg=dict(custom_keys={'absolute_pos_embed': dict(decay_mult=0.),
                                                  'relative_position_bias_table': dict(decay_mult=0.),
                                                  'norm': dict(decay_mult=0.),
@@ -148,7 +155,7 @@ optimizer = dict(type='AdamW', lr=2e-4, betas=(0.9, 0.999), weight_decay=0.05,
                                                  #'norm1': dict(decay_mult=0.),
                                                  #'norm2': dict(decay_mult=0.),
                                                  'backbone': dict(lr_mult=0.1)}))
-# optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
+optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
 lr_config = dict(
     policy='CosineAnnealing',
@@ -158,12 +165,12 @@ lr_config = dict(
     warmup_iters=2.5
 )
 
-total_epochs = 60
+total_epochs = 30
 
 # runtime settings
-work_dir = './work_dirs/k400_swin_tiny_1k_patch244_window877_tranST_HVU'
-find_unused_parameters = True
-checkpoint_config = dict(interval=5)
+work_dir = './work_dirs/swin_tiny_1k_patch244_window877_tranST_HVU'
+find_unused_parameters = False
+checkpoint_config = dict(interval=1)
 log_config = dict(
     interval=20,
     hooks=[
@@ -173,10 +180,10 @@ log_config = dict(
 # runtime settings
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = ('https://github.com/SwinTransformer/storage/releases/download/'
-             'v1.0.4/swin_tiny_patch244_window877_kinetics400_1k.pth')
+# load_from = ('https://github.com/SwinTransformer/storage/releases/download/'
+#              'v1.0.4/swin_tiny_patch244_window877_kinetics400_1k.pth')
 # load_from = ('pretrained/swin/swin_tiny_patch244_window877_kinetics400_1k.pth')
-# load_from = None
+load_from = None
 resume_from = None
 workflow = [('train', 1)]
 # do not use mmdet version fp16

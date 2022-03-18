@@ -34,6 +34,8 @@ def parse_args():
         help='GradCAM target layer name')
     parser.add_argument('--out-filename', default=None, help='output filename')
     parser.add_argument('--fps', default=5, type=int)
+    parser.add_argument('--filename_prefix', default='img', type=str)
+    parser.add_argument('--filename_suffix', default='-{:06}.jpg', type=str)
     parser.add_argument(
         '--cfg-options',
         nargs='+',
@@ -91,7 +93,9 @@ def build_inputs(model, video_path, use_frames=False):
     test_pipeline = Compose(test_pipeline)
     # prepare data
     if use_frames:
-        filename_tmpl = cfg.data.test.get('filename_tmpl', 'img_{:05}.jpg')
+        video_name = video_path.split('/')[-1]
+        filename_tmpl = cfg.data.test.get('filename_tmpl', 'img-{:06}.jpg')
+        filename_tmpl = filename_tmpl.replace('img', video_name)
         modality = cfg.data.test.get('modality', 'RGB')
         start_index = cfg.data.test.get('start_index', 1)
         data = dict(
@@ -175,7 +179,6 @@ def main():
 
     # build the recognizer from a config file and checkpoint file/url
     model = init_recognizer(cfg, args.checkpoint, device=device)
-
     inputs = build_inputs(model, args.video, use_frames=args.use_frames)
     gradcam = GradCAM(model, args.target_layer_name)
     results = gradcam(inputs)

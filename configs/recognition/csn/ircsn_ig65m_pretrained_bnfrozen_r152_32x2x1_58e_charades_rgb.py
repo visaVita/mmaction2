@@ -17,38 +17,20 @@ model = dict(
         # 'https://download.openmmlab.com/mmaction/recognition/csn/ircsn_from_scratch_r152_ig65m_20200807-771c4135.pth'  # noqa: E501
         zero_init_residual=False),
     cls_head=dict(
-        type='TranSTHead',
+        type='I3DHead',
         in_channels=2048,
-        dropout_ratio=0.5,
         num_classes=157,
+        dropout_ratio=0.5,
+        topk=(3),
         multi_class=True,
-        # label_smooth_eps=0.1,
-        topk=3,
-        tranST=dict(hidden_dim=1024,
-                    enc_layer_num=1,
-                    stld_layer_num=1,
-                    n_head=4,
-                    dim_feedforward=4096,
-                    dropout=0.,
-                    drop_path_rate=0.1,
-                    normalize_before=False,
-                    fusion=False,
-                    rm_first_self_attn=False,
-                    rm_res_self_attn=False,
-                    activation="relu",
-                    return_intermediate_dec=False,
-                    t_only=False
-        ),
-        loss_cls=dict(
-            type='AsymmetricLossOptimized',
-            gamma_neg=4,
-            gamma_pos=1,
-            disable_torch_grad_focal_loss=True
-        )
+        loss_cls=dict(type='AsymmetricLossOptimized', gamma_neg=4, gamma_pos=1, disable_torch_grad_focal_loss=True)
     ),
     # model training and testing settings
     train_cfg=None,
-    test_cfg=dict(maximize_clips='score', max_testing_views=10))
+    test_cfg=dict(
+        maximize_clips='score',
+        max_testing_views=5
+    ))
 
 # dataset settings
 dataset_type = 'CharadesDataset'
@@ -109,7 +91,7 @@ test_pipeline = [
     dict(type='ToTensor', keys=['imgs'])
 ]
 data = dict(
-    videos_per_gpu=6,
+    videos_per_gpu=8,
     workers_per_gpu=2,
     test_dataloader=dict(videos_per_gpu=1),
     train=dict(
@@ -130,26 +112,16 @@ data = dict(
 evaluation = dict(interval=1, metrics=['mean_average_precision'])
 
 # optimizer
-optimizer = dict(
-    type='SGD', lr=0.000625, momentum=0.9,
-    weight_decay=0.0001,
-    paramwise_cfg=dict(
-        custom_keys={
-            # TranSTL param
-            'cls_head.pos_enc_module.pos_enc': dict(decay_mult=0.0),
-            # lrp param
-            'backbone': dict(lr_mult=0.1)
-        }
-    ))  # this lr is used for 8 gpus
+optimizer = dict(type='AdamW', lr=1e-4, betas=(0.9, 0.999), weight_decay=0.05)  # this lr is used for 8 gpus
 # optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
 lr_config = dict(
-    policy='step',
-    step=[32, 48],
+    policy='CosineAnnealing',
+    min_lr=0,
     warmup='linear',
-    warmup_ratio=0.1,
     warmup_by_epoch=True,
-    warmup_iters=16)
+    warmup_iters=4
+)
 total_epochs = 58
 
 # do not use mmdet version fp16

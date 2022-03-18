@@ -41,6 +41,8 @@ model = dict(
             dropout_ratio=0.5,
             in_channels=2304,
             num_classes=81,
+            focal_gamma=1.,
+            focal_alpha=3.,
             multilabel=True)),
     train_cfg=dict(
         rcnn=dict(
@@ -60,7 +62,7 @@ model = dict(
     test_cfg=dict(rcnn=dict(action_thr=0.002)))
 
 dataset_type = 'AVADataset'
-data_root = 'data/ava/rawframes'
+data_root = 'data/ava/frames'
 anno_root = 'data/ava/annotations'
 
 ann_file_train = f'{anno_root}/ava_train_v2.2.csv'
@@ -80,7 +82,7 @@ img_norm_cfg = dict(
 
 train_pipeline = [
     dict(type='SampleAVAFrames', clip_len=32, frame_interval=2),
-    dict(type='RawFrameDecode'),
+    dict(type='AVARawFrameDecode'),
     dict(type='RandomRescale', scale_range=(256, 320)),
     dict(type='RandomCrop', size=256),
     dict(type='Flip', flip_ratio=0.5),
@@ -101,7 +103,7 @@ train_pipeline = [
 # The testing is w/o. any cropping / flipping
 val_pipeline = [
     dict(type='SampleAVAFrames', clip_len=32, frame_interval=2),
-    dict(type='RawFrameDecode'),
+    dict(type='AVARawFrameDecode'),
     dict(type='Resize', scale=(-1, 256)),
     dict(type='Normalize', **img_norm_cfg),
     dict(type='FormatShape', input_format='NCTHW', collapse=True),
@@ -116,7 +118,7 @@ val_pipeline = [
 ]
 
 data = dict(
-    videos_per_gpu=6,
+    videos_per_gpu=12,
     workers_per_gpu=2,
     val_dataloader=dict(videos_per_gpu=1),
     test_dataloader=dict(videos_per_gpu=1),

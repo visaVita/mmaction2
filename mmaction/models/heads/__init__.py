@@ -1,7 +1,8 @@
 # Copyright (c) OpenMMLab. All rights reserved.
+import imp
 from .audio_tsn_head import AudioTSNHead
 from .base import BaseHead
-from .bbox_head import BBoxHeadAVA
+from .bbox_head import BBoxHeadAVA, BBoxTranSTLHeadAVA, BBoxX3DHeadAVA
 from .fbo_head import FBOHead
 from .i3d_head import I3DHead
 from .lfb_infer_head import LFBInferHead
@@ -18,10 +19,12 @@ from .tsn_head import TSNHead
 from .x3d_head import X3DHead
 from .movinet_head import MoViNetHead
 from .tranST_head import TranSTHead
+from .cam_head import CAMHead
 
 __all__ = [
     'TSNHead', 'I3DHead', 'BaseHead', 'TSMHead', 'SlowFastHead', 'SSNHead',
     'TPNHead', 'AudioTSNHead', 'X3DHead', 'BBoxHeadAVA', 'AVARoIHead',
     'FBOHead', 'LFBInferHead', 'TRNHead', 'TimeSformerHead', 'ACRNHead',
-    'MoViNetHead', 'STGCNHead', 'TranSTHead'
+    'MoViNetHead', 'STGCNHead', 'TranSTHead', 'BBoxTranSTLHeadAVA', 'BBoxX3DHeadAVA',
+    'CAMHead'
 ]

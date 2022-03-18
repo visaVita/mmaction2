@@ -14,11 +14,17 @@ python tools/train.py configs/recognition/slowfast/slowfast_cot_r50_4x16x1_256e_
 
 ./tools/dist_test.sh configs/recognition/movinet/movinetA4_charades.py work_dirs/movinetA4/epoch_10.pth 4 --eval mean_average_precision
 
+CUDA_VISIBLE_DEVICES=2,3
+
 ./tools/dist_train.sh configs/detection/ava/slowfast_temporal_max_kinetics_pretrained_r50_8x8x1_cosine_10e_ava22_rgb.py 4 --validate --seed 0 --deterministic
 
 python tools/train.py configs/recognition/i3d/i3d_r50_32x2x1_100e_charades_rgb.py --validate --seed 0 --deterministic
 
 ./tools/dist_train.sh configs/recognition/i3d/i3d_r50_32x2x1_100e_charades_rgb.py 4 --validate --seed 0 --deterministic
+
+python tools/analysis/get_flops.py configs/recognition/movinet/movinetA5_charades.py --shape 1 3 32 256 256
+
+python demo/long_video_demo.py ${CONFIG_FILE} ${CHECKPOINT_FILE} ${VIDEO_FILE} ${LABEL_FILE} ${OUT_FILE} [--input-step ${INPUT_STEP}] [--device ${DEVICE_TYPE}] [--threshold ${THRESHOLD}]
 
 git config --global https.proxy https://127.0.0.1:58591
 git config --global http.proxy http://127.0.0.1:58591

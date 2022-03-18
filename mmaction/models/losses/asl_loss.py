@@ -3,117 +3,146 @@ import torch
 import torch.nn as nn
 
 from ..builder import LOSSES
+from .utils import convert_to_one_hot, weight_reduce_loss
+
+def asymmetric_loss(pred,
+                    target,
+                    weight=None,
+                    gamma_pos=1.0,
+                    gamma_neg=4.0,
+                    clip=0.05,
+                    reduction='mean',
+                    avg_factor=None,
+                    multi_label=True,
+                    use_activate=True,
+                    eps=1e-8):
+    r"""asymmetric loss.
+    Please refer to the `paper <https://arxiv.org/abs/2009.14119>`__ for
+    details.
+    Args:
+        pred (torch.Tensor): The prediction with shape (N, \*).
+        target (torch.Tensor): The ground truth label of the prediction with
+            shape (N, \*).
+        weight (torch.Tensor, optional): Sample-wise loss weight with shape
+            (N, ). Defaults to None.
+        gamma_pos (float): positive focusing parameter. Defaults to 0.0.
+        gamma_neg (float): Negative focusing parameter. We usually set
+            gamma_neg > gamma_pos. Defaults to 4.0.
+        clip (float, optional): Probability margin. Defaults to 0.05.
+        reduction (str): The method used to reduce the loss.
+            Options are "none", "mean" and "sum". If reduction is 'none' , loss
+            is same shape as pred and label. Defaults to 'mean'.
+        avg_factor (int, optional): Average factor that is used to average
+            the loss. Defaults to None.
+        use_sigmoid (bool): Whether the prediction uses sigmoid instead
+            of softmax. Defaults to True.
+        eps (float): The minimum value of the argument of logarithm. Defaults
+            to 1e-8.
+    Returns:
+        torch.Tensor: Loss.
+    """
+    assert pred.shape == \
+        target.shape, 'pred and target should be in the same shape.'
+    if use_activate:
+        if multi_label:
+            pred_sigmoid = pred.sigmoid()
+        else:
+            pred_sigmoid = nn.functional.softmax(pred, dim=-1)
+    else:
+        pred_sigmoid = pred
+
+    target = target.type_as(pred)
+
+    if clip and clip > 0:
+        pt = (1 - pred_sigmoid +
+              clip).clamp(max=1) * (1 - target) + pred_sigmoid * target
+    else:
+        pt = (1 - pred_sigmoid) * (1 - target) + pred_sigmoid * target
+    asymmetric_weight = (1 - pt).pow(gamma_pos * target + gamma_neg *
+                                     (1 - target))
+    loss = -torch.log(pt.clamp(min=eps)) * asymmetric_weight
+    if weight is not None:
+        assert weight.dim() == 1
+        weight = weight.float()
+        if pred.dim() > 1:
+            weight = weight.reshape(-1, 1)
+    loss = weight_reduce_loss(loss, weight, reduction, avg_factor)
+    return loss
+
 
 @LOSSES.register_module()
 class AsymmetricLoss(nn.Module):
-    def __init__(self, gamma_neg=4, gamma_pos=1, clip=0.05, eps=1e-8, disable_torch_grad_focal_loss=False):
+    """asymmetric loss.
+    Args:
+        gamma_pos (float): positive focusing parameter.
+            Defaults to 0.0.
+        gamma_neg (float): Negative focusing parameter. We
+            usually set gamma_neg > gamma_pos. Defaults to 4.0.
+        clip (float, optional): Probability margin. Defaults to 0.05.
+        reduction (str): The method used to reduce the loss into
+            a scalar.
+        loss_weight (float): Weight of loss. Defaults to 1.0.
+        use_sigmoid (bool): Whether the prediction uses sigmoid instead
+            of softmax. Defaults to True.
+        eps (float): The minimum value of the argument of logarithm. Defaults
+            to 1e-8.
+    """
+
+    def __init__(self,
+                 gamma_pos=0.0,
+                 gamma_neg=4.0,
+                 clip=0.05,
+                 reduction='mean',
+                 loss_weight=1.0,
+                 use_activate=True,
+                 multi_label=True,
+                 eps=1e-8):
         super(AsymmetricLoss, self).__init__()
-
-        self.gamma_neg = gamma_neg
         self.gamma_pos = gamma_pos
+        self.gamma_neg = gamma_neg
         self.clip = clip
-        self.disable_torch_grad_focal_loss = disable_torch_grad_focal_loss
+        self.reduction = reduction
+        self.loss_weight = loss_weight
+        self.use_activate = use_activate
+        self.multi_label = multi_label
         self.eps = eps
 
-    def forward(self, x, y):
-        """"
-        Parameters
-        ----------
-        x: input logits
-        y: targets (multi-label binarized vector)
+    def forward(self,
+                pred,
+                target,
+                weight=None,
+                avg_factor=None,
+                reduction_override=None):
+        r"""asymmetric loss.
+        Args:
+            pred (torch.Tensor): The prediction with shape (N, \*).
+            target (torch.Tensor): The ground truth label of the prediction
+                with shape (N, \*), N or (N,1).
+            weight (torch.Tensor, optional): Sample-wise loss weight with shape
+                (N, \*). Defaults to None.
+            avg_factor (int, optional): Average factor that is used to average
+                the loss. Defaults to None.
+            reduction_override (str, optional): The method used to reduce the
+                loss into a scalar. Options are "none", "mean" and "sum".
+                Defaults to None.
+        Returns:
+            torch.Tensor: Loss.
         """
-
-        # Calculating Probabilities
-        x_sigmoid = torch.sigmoid(x)
-        xs_pos = x_sigmoid
-        xs_neg = 1 - x_sigmoid
-
-        # Asymmetric Clipping
-        if self.clip is not None and self.clip > 0:
-            xs_neg = (xs_neg + self.clip).clamp(max=1)
-
-        # Basic CE calculation
-        los_pos = y * torch.log(xs_pos.clamp(min=self.eps, max=1-self.eps))
-        los_neg = (1 - y) * torch.log(xs_neg.clamp(min=self.eps, max=1-self.eps))
-        loss = los_pos + los_neg
-
-        # Asymmetric Focusing
-        if self.gamma_neg > 0 or self.gamma_pos > 0:
-            if self.disable_torch_grad_focal_loss:
-                torch._C.set_grad_enabled(False)
-            pt0 = xs_pos * y
-            pt1 = xs_neg * (1 - y)  # pt = p if t > 0 else 1-p
-            pt = pt0 + pt1
-            one_sided_gamma = self.gamma_pos * y + self.gamma_neg * (1 - y)
-            one_sided_w = torch.pow(1 - pt, one_sided_gamma)
-            if self.disable_torch_grad_focal_loss:
-                torch._C.set_grad_enabled(True)
-            loss *= one_sided_w
-
-        return -loss.sum()
-
-@LOSSES.register_module()
-class AsymmetricLossOptimized(nn.Module):
-    ''' Notice - optimized version, minimizes memory allocation and gpu uploading,
-    favors inplace operations'''
-
-    def __init__(self, gamma_neg=4, gamma_pos=1, clip=0.05, eps=1e-5, disable_torch_grad_focal_loss=False):
-        super(AsymmetricLossOptimized, self).__init__()
-
-        self.gamma_neg = gamma_neg
-        self.gamma_pos = gamma_pos
-        self.clip = clip
-        self.disable_torch_grad_focal_loss = disable_torch_grad_focal_loss
-        self.eps = eps
-
-        self.targets = self.anti_targets = self.xs_pos = self.xs_neg = self.asymmetric_w = self.loss = None
-
-    def forward(self, x, y):
-        """"
-        Parameters
-        ----------
-        x: input logits
-        y: targets (multi-label binarized vector)
-        """
-        # import ipdb
-        # ipdb.set_trace()
-        self.targets = y
-        self.anti_targets = 1 - y
-
-        # Calculating Probabilities
-        self.xs_pos = torch.sigmoid(x)
-        self.xs_neg = 1.0 - self.xs_pos
-
-        # Asymmetric Clipping
-        if self.clip is not None and self.clip > 0:
-            self.xs_neg.add_(self.clip).clamp_(max=1)
-
-        # Basic CE calculation
-        self.loss = self.targets * torch.log(self.xs_pos.clamp(min=self.eps))
-        self.loss.add_(self.anti_targets * torch.log(self.xs_neg.clamp(min=self.eps)))
-
-        # Asymmetric Focusing
-        if self.gamma_neg > 0 or self.gamma_pos > 0:
-            if self.disable_torch_grad_focal_loss:
-                with torch.no_grad():
-                    # if self.disable_torch_grad_focal_loss:
-                    #     torch._C.set_grad_enabled(False)
-                    self.xs_pos = self.xs_pos * self.targets
-                    self.xs_neg = self.xs_neg * self.anti_targets
-                    self.asymmetric_w = torch.pow(1 - self.xs_pos - self.xs_neg,
-                                                self.gamma_pos * self.targets + self.gamma_neg * self.anti_targets)
-                    # if self.disable_torch_grad_focal_loss:
-                    #     torch._C.set_grad_enabled(True)
-                self.loss *= self.asymmetric_w
-            else:
-                self.xs_pos = self.xs_pos * self.targets
-                self.xs_neg = self.xs_neg * self.anti_targets
-                self.asymmetric_w = torch.pow(1 - self.xs_pos - self.xs_neg,
-                                            self.gamma_pos * self.targets + self.gamma_neg * self.anti_targets)   
-                self.loss *= self.asymmetric_w         
-        _loss = - self.loss.sum() / x.size(0)
-        _loss = _loss / y.size(1) * 1000
-
-        return _loss
-
-
+        assert reduction_override in (None, 'none', 'mean', 'sum')
+        reduction = (
+            reduction_override if reduction_override else self.reduction)
+        if target.dim() == 1 or (target.dim() == 2 and target.shape[1] == 1):
+            target = convert_to_one_hot(target.view(-1, 1), pred.shape[-1])
+        loss_cls = self.loss_weight * asymmetric_loss(
+            pred,
+            target,
+            weight,
+            gamma_pos=self.gamma_pos,
+            gamma_neg=self.gamma_neg,
+            clip=self.clip,
+            reduction=reduction,
+            avg_factor=avg_factor,
+            use_activate=self.use_activate,
+            multi_label=self.multi_label,
+            eps=self.eps)
+        return loss_cls

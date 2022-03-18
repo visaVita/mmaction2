@@ -14,34 +14,6 @@ param list for MoViNetA4:
 
 """
 
-""" def fill_SE_config(conf, input_channels, 
-                    out_channels, 
-                    expanded_channels,
-                    kernel_size,
-                    stride,
-                    padding,
-                    padding_avg,
-):
-    conf['expanded_channels'] =expanded_channels
-    conf['padding_avg']= padding_avg
-    fill_conv(conf,input_channels,
-                out_channels, 
-                kernel_size,
-                stride,
-                padding,
-)
-
-def fill_conv(conf, input_channels,
-                out_channels, 
-                kernel_size,
-                stride,
-                padding,):
-    conf['input_channels'] = input_channels
-    conf['out_channels'] = out_channels
-    conf['kernel_size'] = kernel_size
-    conf['stride'] = stride
-    conf['padding'] = padding """
-
 cfg = dict()
 cfg['name'] = 'A4'
 cfg['conv1'] = dict()
@@ -468,7 +440,6 @@ model = dict(
     ),
     cls_head=dict(
         type='MoViNetHead',
-        cfg=cfg,
         num_classes=600,
         dropout_ratio=0.5
     ),

@@ -6,10 +6,10 @@ from .tam import TAM
 from .transformer import (DividedSpatialAttentionWithNorm,
                           DividedTemporalAttentionWithNorm, FFNWithNorm, 
                           PositionalEnconding, Transformer)
-from .tranST import TranST
+from .tranST import TranST, PositionEmbeddingSine
 
 __all__ = [
     'Conv2plus1d', 'ConvAudio', 'LFB', 'TAM',
     'DividedSpatialAttentionWithNorm', 'DividedTemporalAttentionWithNorm',
-    'FFNWithNorm', 'PositionalEnconding', 'Transformer', 'TranST'
+    'FFNWithNorm', 'PositionalEnconding', 'Transformer', 'TranST', 'PositionEmbeddingSine'
 ]

@@ -96,7 +96,7 @@ class AVADataset(BaseDataset):
                  exclude_file,
                  pipeline,
                  label_file=None,
-                 filename_tmpl='img_{:05}.jpg',
+                 filename_tmpl='img_{:06}.jpg',
                  proposal_file=None,
                  person_det_score_thr=0.9,
                  num_classes=81,

@@ -20,28 +20,28 @@ model = dict(
         dropout_ratio=0.5,
         num_classes=157,
         multi_class=True,
-        # label_smooth_eps=0.1,
-        topk=3,
-        tranST=dict(hidden_dim=512,
+        label_smooth_eps=0.1,
+        topk=(3, 5),
+        tranST=dict(hidden_dim=1024,
                     enc_layer_num=0,
-                    stld_layer_num=1,
-                    n_head=4,
-                    dim_feedforward=2048,
+                    stld_layer_num=2,
+                    n_head=8,
+                    dim_feedforward=4096,
                     dropout=0.,
-                    drop_path_rate=0.,
+                    drop_path_rate=0.1,
                     normalize_before=False,
                     fusion=False,
-                    rm_first_self_attn=False,
-                    rm_res_self_attn=False,
+                    rm_first_self_attn=True,
+                    rm_res_self_attn=True,
                     activation="relu",
                     return_intermediate_dec=False,
                     t_only=False
         ),
         loss_cls=dict(
-            type='AsymmetricLossOptimized',
+            type='AsymmetricLoss',
             gamma_neg=4,
             gamma_pos=1,
-            disable_torch_grad_focal_loss=True
+            # disable_torch_grad_focal_loss=True
         )
     ),
     # train_cfg=dict(blending=dict(type='MixupBlending', num_classes=157, alpha=.2, smoothing=0.1)),
@@ -54,8 +54,8 @@ ann_file_train = 'data/charades/annotations/charades_train_list_rawframes.csv'
 ann_file_val = 'data/charades/annotations/charades_val_list_rawframes.csv'
 ann_file_test = 'data/charades/annotations/charades_val_list_rawframes.csv'
 img_norm_cfg = dict(
-    # mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375],
-    mean=[105.315, 93.84, 86.19], std=[33.405, 31.875, 33.66],
+    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375],
+    # mean=[105.315, 93.84, 86.19], std=[33.405, 31.875, 33.66],
     to_bgr=False)
 train_pipeline = [
     dict(
@@ -96,6 +96,7 @@ test_pipeline = [
         type='SampleCharadesFrames',
         clip_len=32,
         num_clips=10,
+        frame_interval=2,
         test_mode=True),
     dict(type='RawFrameDecode'),
     dict(type='Resize', scale=(-1, 256)),
@@ -136,7 +137,7 @@ data = dict(
 evaluation = dict(interval=1, metrics=['mean_average_precision'])
 optimizer = dict(
     type='AdamW',
-    lr=0.00015,
+    lr=0.0003,
     betas=(0.9, 0.999),
     # eps=1e-8,
     weight_decay=0.05,
@@ -147,9 +148,10 @@ optimizer = dict(
             # swin param
             'backbone.absolute_pos_embed': dict(decay_mult=0.0),
             'backbone.relative_position_bias_table': dict(decay_mult=0.0),
-            'backbone.norm': dict(decay_mult=0.0),       
+            'backbone.norm': dict(decay_mult=0.0),
             # lrp param
-            'backbone': dict(lr_mult=0.1)
+            'backbone': dict(lr_mult=0.1),
+            # 'cls_head': dict(decay_mult=0.2)
         }
     )
 )
@@ -161,7 +163,7 @@ fp16 = None
 optimizer_config = dict(
     type="DistOptimizerHook",
     update_interval=4,
-    grad_clip=dict(grad_clip=dict(max_norm=5., norm_type=2)),
+    grad_clip=dict(max_norm=5., norm_type=2),
     coalesce=True,
     bucket_size_mb=-1,
     use_fp16=True,
@@ -179,12 +181,12 @@ total_epochs = 30
 
 work_dir = './work_dirs/k600_swin_base_22k_patch244_window877_tranST_charades'
 find_unused_parameters = False
-checkpoint_config = dict(interval=5)
+checkpoint_config = dict(interval=1)
 log_config = dict(
-    interval=10,
+    interval=20,
     hooks=[
         dict(type='TextLoggerHook'),
-        dict(type='TensorboardLoggerHook'),
+        # dict(type='TensorboardLoggerHook'),
     ])
 dist_params = dict(backend='nccl')
 log_level = 'INFO'

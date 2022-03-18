@@ -20,28 +20,28 @@ model=dict(
         dropout_ratio=0.5,
         num_classes=157,
         multi_class=True,
-        # label_smooth_eps=0.1,
-        topk=(3),
-        tranST=dict(hidden_dim=512,
-                    enc_layer_num=1,
-                    stld_layer_num=1,
-                    n_head=4,
-                    dim_feedforward=2048,
-                    dropout=0.,
-                    drop_path_rate=0.1,
-                    normalize_before=False,
-                    fusion=False,
-                    rm_first_self_attn=False,
-                    rm_res_self_attn=False,
-                    activation="relu",
-                    return_intermediate_dec=False,
-                    t_only=False
-        ),
-        loss_cls=dict(type='AsymmetricLossOptimized', gamma_neg=4, gamma_pos=1, disable_torch_grad_focal_loss=True),
-    ),
-    train_cfg=dict(
-        blending=dict(type='MixupBlending', num_classes=157, alpha=.2, smoothing=0.1)
-    ),
+        topk=(3,5),
+        tranST=dict(
+            hidden_dim=768,
+            enc_layer_num=0,
+            stld_layer_num=2,
+            n_head=6,
+            dim_feedforward=768*4,
+            dropout=0.0,
+            drop_path_rate=0.1,
+            normalize_before=False,
+            fusion=True,
+            rm_first_self_attn=False,
+            rm_res_self_attn=True,
+            activation='relu',
+            return_intermediate_dec=False,
+            t_only=False),
+        loss_cls=dict(
+            type='AsymmetricLoss',
+            gamma_neg=4,
+            gamma_pos=1,
+            loss_weight=333.)),
+    # train_cfg=dict(blending=dict(type='MixupBlending', num_classes=157, alpha=.2, smoothing=0.1)),
     test_cfg=dict(
         maximize_clips='score',
         max_testing_views=10
@@ -55,12 +55,12 @@ ann_file_train = 'data/charades/annotations/charades_train_list_rawframes.csv'
 ann_file_val = 'data/charades/annotations/charades_val_list_rawframes.csv'
 ann_file_test = 'data/charades/annotations/charades_val_list_rawframes.csv'
 img_norm_cfg = dict(
-    mean=[105.315, 93.84, 86.19], std=[33.405, 31.875, 33.66], to_bgr=False)
+    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(
         type='SampleCharadesFrames',
         clip_len=32,
-        frame_interval=4,
+        frame_interval=2,
         num_clips=1),
     dict(type='RawFrameDecode'),
     dict(type='Resize', scale=(-1, 256)),
@@ -76,7 +76,7 @@ val_pipeline = [
     dict(
         type='SampleCharadesFrames',
         clip_len=32,
-        frame_interval=4,
+        frame_interval=2,
         num_clips=1,
         test_mode=True),
     dict(type='RawFrameDecode'),
@@ -92,7 +92,7 @@ test_pipeline = [
     dict(
         type='SampleCharadesFrames',
         clip_len=32,
-        frame_interval=4,
+        frame_interval=2,
         num_clips=10,
         test_mode=True),
     dict(type='RawFrameDecode'),
@@ -108,7 +108,7 @@ data = dict(
     videos_per_gpu=4,
     workers_per_gpu=2,
     val_dataloader=dict(videos_per_gpu=1),
-    test_dataloader=dict(videos_per_gpu=1),
+    test_dataloader=dict(videos_per_gpu=1, workers_per_gpu=2),
     train=dict(
         type=dataset_type,
         ann_file=ann_file_train,
@@ -128,19 +128,19 @@ evaluation = dict(
     interval=1, metrics=['mean_average_precision'])
 
 # optimizer
-optimizer = dict(type='AdamW', lr=2e-4, betas=(0.9, 0.999), weight_decay=0.02,
+optimizer = dict(type='AdamW', lr=0.0003, betas=(0.9, 0.999), weight_decay=0.02,
                  paramwise_cfg=dict(
-                custom_keys=dict(
-                    # swin param
-                    absolute_pos_embed=dict(decay_mult=0.0),
-                    relative_position_bias_table=dict(decay_mult=0.0),
-                    norm=dict(decay_mult=0.0),
-                    # TranSTL param
-                    # pos_enc=dict(lr_mult=0.0, decay_mult=0.0),
-                    # bias=dict(decay_mult=0.0),
-                    # TranST=dict(lr_mult=0.5),
-                    # lrp param
-                    backbone=dict(lr_mult=0.1)))
+                 custom_keys=dict(
+                     # swin param
+                     absolute_pos_embed=dict(decay_mult=0.0),
+                     relative_position_bias_table=dict(decay_mult=0.0),
+                     norm=dict(decay_mult=0.0),
+                     # TranSTL param
+                     # pos_enc=dict(lr_mult=0.0, decay_mult=0.0),
+                     # bias=dict(decay_mult=0.0),
+                     # TranST=dict(lr_mult=0.5),
+                     # lrp param
+                     backbone=dict(lr_mult=0.1)))
 )
 # optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
@@ -151,11 +151,11 @@ lr_config = dict(
     warmup_by_epoch=True,
     warmup_iters=2.5
 )
-total_epochs = 60
+total_epochs = 30
 
 # runtime settings
 work_dir = './work_dirs/k400_swin_tiny_1k_patch244_window877_tranST_charades'
-find_unused_parameters = False
+find_unused_parameters = True
 checkpoint_config = dict(interval=5)
 log_config = dict(
     interval=20,
@@ -173,12 +173,12 @@ load_from = ('https://github.com/SwinTransformer/storage/releases/download/'
 resume_from = None
 workflow = [('train', 1)]
 # do not use mmdet version fp16
-# fp16 = None
-# optimizer_config = dict(
-#     type="DistOptimizerHook",
-#     update_interval=2,
-#     grad_clip=None,
-#     coalesce=True,
-#     bucket_size_mb=-1,
-#     use_fp16=True,
-# )
+fp16 = None
+optimizer_config = dict(
+    type="DistOptimizerHook",
+    update_interval=1,
+    grad_clip=None,
+    coalesce=True,
+    bucket_size_mb=-1,
+    use_fp16=True,
+)

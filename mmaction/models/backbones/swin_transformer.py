@@ -13,6 +13,11 @@ from functools import reduce, lru_cache
 from operator import mul
 from einops import rearrange
 
+try:
+    from mmdet.models import BACKBONES as MMDET_BACKBONES
+    mmdet_imported = True
+except (ImportError, ModuleNotFoundError):
+    mmdet_imported = False
 
 class Mlp(nn.Module):
     """ Multilayer perceptron."""
@@ -653,3 +658,6 @@ class SwinTransformer3D(nn.Module):
         """Convert the model into training mode while keep layers freezed."""
         super(SwinTransformer3D, self).train(mode)
         self._freeze_stages()
+
+if mmdet_imported:
+    MMDET_BACKBONES.register_module()(SwinTransformer3D)

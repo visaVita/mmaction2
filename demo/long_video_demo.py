@@ -249,6 +249,11 @@ def main():
             data['num_clips'] = step['num_clips']
             data['clip_len'] = step['clip_len']
             pipeline_.remove(step)
+        elif 'SampleCharadesFrames' in step['type']:
+            sample_length = step['clip_len'] * step['num_clips']
+            data['num_clips'] = step['num_clips']
+            data['clip_len'] = step['clip_len']
+            pipeline_.remove(step)
         if step['type'] in EXCLUED_STEPS:
             # remove step to decode frames
             pipeline_.remove(step)

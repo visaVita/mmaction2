@@ -24,6 +24,7 @@ class Recognizer3D(BaseRecognizer):
 
         cls_score = self.cls_head(x)
         gt_labels = labels.squeeze()
+        # assert isinstance(cls_score, tuple)
         loss_cls = self.cls_head.loss(cls_score, gt_labels, **kwargs)
         losses.update(loss_cls)
 
@@ -91,7 +92,7 @@ class Recognizer3D(BaseRecognizer):
         assert self.with_cls_head
         cls_score = self.cls_head(feat)
         if isinstance(cls_score, tuple):
-            cls_score = cls_score[0] + cls_score[1]
+            cls_score = (cls_score[0] + cls_score[1])/2.
         # cls_score = self.average_clip(cls_score, num_segs)
         cls_score = self.aggregate_clip(cls_score, num_segs)
         return cls_score

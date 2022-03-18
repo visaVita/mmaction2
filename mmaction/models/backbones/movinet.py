@@ -539,7 +539,7 @@ class MoViNet(nn.Module):
         blocks_dic = OrderedDict()
 
         norm_layer = nn.BatchNorm3d if conv_type == "3d" else nn.BatchNorm2d
-        activation_layer = Swish if conv_type == "3d" else nn.Hardswish
+        activation_layer = nn.Hardswish if conv_type == "3d" else nn.Hardswish
         # activation_layer = nn.LeakyReLU
 
         # conv1
@@ -579,52 +579,6 @@ class MoViNet(nn.Module):
             norm_layer=norm_layer,
             activation_layer=activation_layer
             )
-        # pool
-        """ 
-        self.classifier = nn.Sequential(
-            # dense9
-            ConvBlock3D(cfg['conv7']['out_channels'],
-                        cfg['dense9']['hidden_dim'],
-                        kernel_size=(1, 1, 1),
-                        tf_like=tf_like,
-                        causal=causal,
-                        conv_type=conv_type,
-                        bias=True),
-            Swish(),
-            nn.Dropout(p=0.2, inplace=True),
-            # dense10d
-            ConvBlock3D(cfg['dense9']['hidden_dim'],
-                        num_classes,
-                        kernel_size=(1, 1, 1),
-                        tf_like=tf_like,
-                        causal=causal,
-                        conv_type=conv_type,
-                        bias=True),
-        )
-        if causal:
-            self.cgap = TemporalCGAvgPool3D()
-        if pretrained:
-            if causal:
-                if cfg['name'] not in ["A0", "A1", "A2"]:
-                    raise ValueError("Only A0,A1,A2 streaming" +
-                                     "networks are available pretrained")
-                state_dict = (torch.hub
-                              .load_state_dict_from_url(cfg['stream_weights']))
-            else:
-                state_dict = torch.hub.load_state_dict_from_url(cfg['weights'])
-            self.load_state_dict(state_dict)
-        else:
-            self.apply(self._weight_init)
-        self.causal = causal
-
-    def avg(self, x: Tensor) -> Tensor:
-        if self.causal:
-            avg = F.adaptive_avg_pool3d(x, (x.shape[2], 1, 1))
-            avg = self.cgap(avg)[:, :, -1:]
-        else:
-            avg = F.adaptive_avg_pool3d(x, 1)
-        return avg
-        """
     def init_weights(self):
         for m in enumerate(self.modules()):
             if isinstance(m, nn.Conv3d):
@@ -642,9 +596,6 @@ class MoViNet(nn.Module):
         x = self.conv1(x)
         x = self.blocks(x)
         x = self.conv7(x)
-        # x = self.avg(x)
-        # x = self.classifier(x)
-        # x = x.flatten(1)
         return x
 
     def forward(self, x: Tensor) -> Tensor:

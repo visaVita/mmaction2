@@ -18,13 +18,10 @@ model=dict(
         type='I3DHead',
         in_channels=768,
         num_classes=157,
-        spatial_type='avg',
         dropout_ratio=0.5,
-        # label_smooth_eps=0.1,
         topk=(3),
         multi_class=True,
-        # loss_cls=dict(type='BCELossWithLogits')
-        loss_cls=dict(type='AsymmetricLossOptimized', gamma_neg=4, gamma_pos=1, disable_torch_grad_focal_loss=True)
+        loss_cls=dict(type='AsymmetricLossOptimized', gamma_neg=4, gamma_pos=1)
     ),
     test_cfg=dict(
         maximize_clips='score',
@@ -41,12 +38,11 @@ ann_file_train = 'data/charades/annotations/charades_train_list_rawframes.csv'
 ann_file_val = 'data/charades/annotations/charades_val_list_rawframes.csv'
 ann_file_test = 'data/charades/annotations/charades_val_list_rawframes.csv'
 img_norm_cfg = dict(
-    mean=[105.315, 93.84, 86.19], std=[33.405, 31.875, 33.66], to_bgr=False)
+    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_bgr=False)
 train_pipeline = [
     dict(
-        type='SampleCharadesFrames',
+        type='UniformSampleFrames',
         clip_len=64,
-        frame_interval=2,
         num_clips=1),
     dict(type='RawFrameDecode'),
     dict(type='Resize', scale=(-1, 256)),
@@ -60,9 +56,8 @@ train_pipeline = [
 ]
 val_pipeline = [
     dict(
-        type='SampleCharadesFrames',
+        type='UniformSampleFrames',
         clip_len=64,
-        frame_interval=2,
         num_clips=1,
         test_mode=True),
     dict(type='RawFrameDecode'),
@@ -76,9 +71,8 @@ val_pipeline = [
 ]
 test_pipeline = [
     dict(
-        type='SampleCharadesFrames',
+        type='UniformSampleFrames',
         clip_len=64,
-        frame_interval=2,
         num_clips=10,
         test_mode=True),
     dict(type='RawFrameDecode'),
@@ -91,7 +85,7 @@ test_pipeline = [
     dict(type='ToTensor', keys=['imgs'])
 ]
 data = dict(
-    videos_per_gpu=8,
+    videos_per_gpu=6,
     workers_per_gpu=2,
     val_dataloader=dict(videos_per_gpu=1),
     test_dataloader=dict(videos_per_gpu=1),
@@ -111,11 +105,11 @@ data = dict(
         data_prefix=data_root_val,
         pipeline=test_pipeline))
 evaluation = dict(
-    interval=5, metrics=['mean_average_precision'])
+    interval=1, metrics=['mean_average_precision'])
 
 # optimizer
 optimizer = dict(type='AdamW',
-                 lr=5e-4,
+                 lr=0.00035,
                  betas=(0.9, 0.999),
                  weight_decay=0.02,
                 #  constructor='swin_constructor',
@@ -126,17 +120,19 @@ optimizer = dict(type='AdamW',
 
 # optimizer_config = dict(grad_clip=dict(max_norm=40, norm_type=2))
 # learning policy
-lr_config = dict(policy='step',
-                 step=[20, 25],
-                 warmup='linear',
-                 warmup_by_epoch=True,
-                 warmup_iters=2
+lr_config = dict(
+    policy='CosineAnnealing',
+    min_lr=0,
+    warmup='linear',
+    warmup_by_epoch=True,
+    warmup_iters=2.5
 )
 
 total_epochs = 30
 
+
 # runtime settings
-work_dir = './work_dirs/k400_swin_tiny_1k_patch244_window877_charades'
+work_dir = './work_dirs/k400_swin_small_1k_patch244_window877_charades'
 find_unused_parameters = False
 checkpoint_config = dict(interval=5)
 log_config = dict(
@@ -156,7 +152,7 @@ workflow = [('train', 1)]
 fp16 = None
 optimizer_config = dict(
     type="DistOptimizerHook",
-    update_interval=8,
+    update_interval=6,
     grad_clip=None,
     coalesce=True,
     bucket_size_mb=-1,

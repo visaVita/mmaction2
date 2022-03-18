@@ -270,6 +270,143 @@ class SampleFrames:
         return repr_str
 
 @PIPELINES.register_module()
+class UniformSampleCharadesFrames:
+    """Uniformly sample frames from the video.
+
+    To sample an n-frame clip from the video. UniformSampleFrames basically
+    divide the video into n segments of equal length and randomly sample one
+    frame from each segment. To make the testing results reproducible, a
+    random seed is set during testing, to make the sampling results
+    deterministic.
+
+    Required keys are "total_frames", "start_index" , added or modified keys
+    are "frame_inds", "clip_len", "frame_interval" and "num_clips".
+
+    Args:
+        clip_len (int): Frames of each sampled output clip.
+        num_clips (int): Number of clips to be sampled. Default: 1.
+        test_mode (bool): Store True when building test or validation dataset.
+            Default: False.
+        seed (int): The random seed used during test time. Default: 255.
+    """
+
+    def __init__(self, clip_len, num_classes=157, num_clips=1, test_mode=False, seed=255):
+
+        self.clip_len = clip_len
+        self.num_clips = num_clips
+        self.test_mode = test_mode
+        self.seed = seed
+        self.num_classes = num_classes
+
+    @staticmethod
+    def aggregate_labels(label_list):
+        """Join a list of label list."""
+        return list(set().union(*label_list))
+
+    def _get_train_clips(self, num_frames, clip_len):
+        """Uniformly sample indices for training clips.
+
+        Args:
+            num_frames (int): The number of frames.
+            clip_len (int): The length of the clip.
+        """
+
+        assert self.num_clips == 1
+        if num_frames < clip_len:
+            start = np.random.randint(0, num_frames)
+            inds = np.arange(start, start + clip_len)
+        elif clip_len <= num_frames < 2 * clip_len:
+            basic = np.arange(clip_len)
+            inds = np.random.choice(
+                clip_len + 1, num_frames - clip_len, replace=False)
+            offset = np.zeros(clip_len + 1, dtype=np.int64)
+            offset[inds] = 1
+            offset = np.cumsum(offset)
+            inds = basic + offset[:-1]
+        else:
+            bids = np.array(
+                [i * num_frames // clip_len for i in range(clip_len + 1)])
+            bsize = np.diff(bids)
+            bst = bids[:clip_len]
+            offset = np.random.randint(bsize)
+            inds = bst + offset
+        return inds
+
+    def _get_test_clips(self, num_frames, clip_len):
+        """Uniformly sample indices for testing clips.
+
+        Args:
+            num_frames (int): The number of frames.
+            clip_len (int): The length of the clip.
+        """
+
+        np.random.seed(self.seed)
+        if num_frames < clip_len:
+            # Then we use a simple strategy
+            if num_frames < self.num_clips:
+                start_inds = list(range(self.num_clips))
+            else:
+                start_inds = [
+                    i * num_frames // self.num_clips
+                    for i in range(self.num_clips)
+                ]
+            inds = np.concatenate(
+                [np.arange(i, i + clip_len) for i in start_inds])
+        elif clip_len <= num_frames < clip_len * 2:
+            all_inds = []
+            for i in range(self.num_clips):
+                basic = np.arange(clip_len)
+                inds = np.random.choice(
+                    clip_len + 1, num_frames - clip_len, replace=False)
+                offset = np.zeros(clip_len + 1, dtype=np.int64)
+                offset[inds] = 1
+                offset = np.cumsum(offset)
+                inds = basic + offset[:-1]
+                all_inds.append(inds)
+            inds = np.concatenate(all_inds)
+        else:
+            bids = np.array(
+                [i * num_frames // clip_len for i in range(clip_len + 1)])
+            bsize = np.diff(bids)
+            bst = bids[:clip_len]
+            all_inds = []
+            for i in range(self.num_clips):
+                offset = np.random.randint(bsize)
+                all_inds.append(bst + offset)
+            inds = np.concatenate(all_inds)
+        return inds
+
+    def __call__(self, results):
+        num_frames = results['total_frames']
+
+        if self.test_mode:
+            inds = self._get_test_clips(num_frames, self.clip_len)
+        else:
+            inds = self._get_train_clips(num_frames, self.clip_len)
+            label_list = results['label'][inds[0] - 1:inds[-1]]
+            label = self.aggregate_labels(label_list)
+            onehot = torch.zeros(self.num_classes)
+            onehot[label] = 1.
+            results['label'] = onehot
+
+        inds = np.mod(inds, num_frames)
+        start_index = results['start_index']
+        inds = inds + start_index
+        results['frame_inds'] = inds.astype(np.int)
+        results['clip_len'] = self.clip_len
+        results['frame_interval'] = None
+        results['num_clips'] = self.num_clips
+        return results
+
+    def __repr__(self):
+        repr_str = (f'{self.__class__.__name__}('
+                    f'clip_len={self.clip_len}, '
+                    f'num_clips={self.num_clips}, '
+                    f'test_mode={self.test_mode}, '
+                    f'seed={self.seed})')
+        return repr_str
+
+@PIPELINES.register_module()
 class SampleCharadesFrames(SampleFrames):
     def __init__(self, num_classes=157, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1376,6 +1513,111 @@ class RawFrameDecode:
                     f'io_backend={self.io_backend}, '
                     f'decoding_backend={self.decoding_backend})')
         return repr_str
+
+
+
+@PIPELINES.register_module()
+class AVARawFrameDecode:
+    """Load and decode frames with given indices.
+
+    Required keys are "frame_dir", "filename_tmpl" and "frame_inds",
+    added or modified keys are "imgs", "img_shape" and "original_shape".
+
+    Args:
+        io_backend (str): IO backend where frames are stored. Default: 'disk'.
+        decoding_backend (str): Backend used for image decoding.
+            Default: 'cv2'.
+        kwargs (dict, optional): Arguments for FileClient.
+    """
+
+    def __init__(self, io_backend='disk', decoding_backend='cv2', **kwargs):
+        self.io_backend = io_backend
+        self.decoding_backend = decoding_backend
+        self.kwargs = kwargs
+        self.file_client = None
+
+    def __call__(self, results):
+        """Perform the ``RawFrameDecode`` to pick frames given indices.
+
+        Args:
+            results (dict): The resulting dict to be modified and passed
+                to the next transform in pipeline.
+        """
+        mmcv.use_backend(self.decoding_backend)
+
+        directory = results['frame_dir']
+        video_name = directory.split('/')[-1]
+        filename_tmpl = results['filename_tmpl']
+        filename_tmpl = filename_tmpl.replace('img', video_name)
+        modality = results['modality']
+
+        if self.file_client is None:
+            self.file_client = FileClient(self.io_backend, **self.kwargs)
+
+        imgs = list()
+
+        if results['frame_inds'].ndim != 1:
+            results['frame_inds'] = np.squeeze(results['frame_inds'])
+
+        offset = results.get('offset', 0)
+
+        cache = {}
+        for i, frame_idx in enumerate(results['frame_inds']):
+            # Avoid loading duplicated frames
+            if frame_idx in cache:
+                if modality == 'RGB':
+                    imgs.append(cp.deepcopy(imgs[cache[frame_idx]]))
+                else:
+                    imgs.append(cp.deepcopy(imgs[2 * cache[frame_idx]]))
+                    imgs.append(cp.deepcopy(imgs[2 * cache[frame_idx] + 1]))
+                continue
+            else:
+                cache[frame_idx] = i
+
+            frame_idx += offset
+            if modality == 'RGB':
+                filepath = osp.join(directory, filename_tmpl.format(frame_idx))
+                img_bytes = self.file_client.get(filepath)
+                # Get frame with channel order RGB directly.
+                cur_frame = mmcv.imfrombytes(img_bytes, channel_order='rgb')
+                imgs.append(cur_frame)
+            elif modality == 'Flow':
+                x_filepath = osp.join(directory,
+                                      filename_tmpl.format('x', frame_idx))
+                y_filepath = osp.join(directory,
+                                      filename_tmpl.format('y', frame_idx))
+                x_img_bytes = self.file_client.get(x_filepath)
+                x_frame = mmcv.imfrombytes(x_img_bytes, flag='grayscale')
+                y_img_bytes = self.file_client.get(y_filepath)
+                y_frame = mmcv.imfrombytes(y_img_bytes, flag='grayscale')
+                imgs.extend([x_frame, y_frame])
+            else:
+                raise NotImplementedError
+
+        results['imgs'] = imgs
+        results['original_shape'] = imgs[0].shape[:2]
+        results['img_shape'] = imgs[0].shape[:2]
+
+        # we resize the gt_bboxes and proposals to their real scale
+        if 'gt_bboxes' in results:
+            h, w = results['img_shape']
+            scale_factor = np.array([w, h, w, h])
+            gt_bboxes = results['gt_bboxes']
+            gt_bboxes = (gt_bboxes * scale_factor).astype(np.float32)
+            results['gt_bboxes'] = gt_bboxes
+            if 'proposals' in results and results['proposals'] is not None:
+                proposals = results['proposals']
+                proposals = (proposals * scale_factor).astype(np.float32)
+                results['proposals'] = proposals
+
+        return results
+
+    def __repr__(self):
+        repr_str = (f'{self.__class__.__name__}('
+                    f'io_backend={self.io_backend}, '
+                    f'decoding_backend={self.decoding_backend})')
+        return repr_str
+
 
 
 @PIPELINES.register_module()
